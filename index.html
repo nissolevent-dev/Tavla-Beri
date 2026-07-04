@@ -1528,13 +1528,13 @@ document.getElementById("diceResetBtn").addEventListener("click", ()=>{
 
 /* seatFromRotation: king + kuyruktaki herkesin toplamına göre KENDİSİ
    karar verir (useHelper parametresi YOK artık - dinamik). Toplam
-   oyuncu sayısı (king + queue.length + kingHelper varsa) 5 ise Kral'ın
-   yardımcısı olur, değilse (4 veya başka sayılarda) Kral hep tek kalır.
+   oyuncu sayısı (king + queue.length + kingHelper varsa) 5,6,7 ise Kral'ın
+   yardımcısı olur, 4 kişide Kral hep tek kalır.
    Bu sayede oturuma sonradan oyuncu eklenip çıkarılınca kural anında
    güncel oyuncu sayısına göre kendini ayarlar. */
 function seatFromRotation(king, kingHelperWanted, queueFull){
   const totalPlayers = 1 + (kingHelperWanted ? 1 : 0) + queueFull.length;
-  const useHelper = totalPlayers === 5;
+  const useHelper = totalPlayers >= 5; // 5,6,7 kişide Kral'ın yardımcısı var
   let kingHelper = null;
   let queue = queueFull.slice();
   if (useHelper){
@@ -1582,16 +1582,49 @@ function seatFromRotation(king, kingHelperWanted, queueFull){
    yardımcısı, kalan 2 kişi rakibin ortağı. Sonraki her elde: oyunu
    (oturarak) kaybeden, bir sonraki elde DOĞRUDAN kazananın (yeni Kral'ın)
    yardımcısı olur; eski yardımcı sıranın sonuna gider. */
+/* ranking: en büyükten en küçüğe sıralanmış isim listesi. Kral = ranking[0].
+   4 KİŞİDE: Kral HEP TEK. Sıra: en küçük → 2.büyük → 3.büyük.
+   5 KİŞİDE: A=Kral+R4, B=R5+[R2,R3]. Kaybeden oturan → yeni yardımcı.
+   6 KİŞİDE: A=Kral+R5, B=R6+[R2,R3,R4]. Kaybeden oturan → yeni yardımcı.
+   7 KİŞİDE: A=Kral+R6, B=R7+[R2,R3,R4,R5]. Kaybeden oturan → yeni yardımcı. */
 function rotationFromRanking(ranking){
+  const n = ranking.length;
   const king = ranking[0];
-  // Tüm geri kalanları: en küçük en önde, sonra 2.en büyük, 3.en büyük...
-  // (doğal sıra). seatFromRotation, toplam sayıya göre kendisi 5 kişi
-  // durumunda ikinciyi otomatik Kral yardımcısı yapar.
-  const nonKing = ranking.slice(1); // [2.en büyük, 3.en büyük, ..., en küçük]
+
+  if (n === 4){
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const restInOrder = nonKing.slice(0, -1);
+    return seatFromRotation(king, null, [lowest].concat(restInOrder));
+  }
+
+  if (n === 5){
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const rest = nonKing.slice(0, -1);
+    return seatFromRotation(king, null, [lowest, ...rest]);
+  }
+
+  if (n === 6){
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const helper = nonKing[nonKing.length - 2];
+    const rest = nonKing.slice(0, -2);
+    return seatFromRotation(king, null, [lowest, ...rest, helper]);
+  }
+
+  if (n === 7){
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const helper = nonKing[nonKing.length - 2];
+    const rest = nonKing.slice(0, -2);
+    return seatFromRotation(king, null, [lowest, ...rest, helper]);
+  }
+
+  const nonKing = ranking.slice(1);
   const lowest = nonKing[nonKing.length - 1];
-  const restInOrder = nonKing.slice(0, -1); // [2.en büyük, 3.en büyük, ...]
-  const queueForChallenger = [lowest].concat(restInOrder);
-  return seatFromRotation(king, null, queueForChallenger);
+  const restInOrder = nonKing.slice(0, -1);
+  return seatFromRotation(king, null, [lowest, ...restInOrder]);
 }
 /* Bir el bittiğinde sıradaki eli (yeni Kral/yardımcı/rakip/ortaklar) hesaplar.
    Yardımcı kuralı artık STATİK bir bayrak değil, o anki TOPLAM oyuncu
