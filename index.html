@@ -1006,28 +1006,34 @@ function addSessionPlayerFromInput(){
   if (!s) return;
   if ((s.activePlayers||{})[name]){ alert(`${name} zaten oturumda.`); return; }
 
-  // genel oyuncu listesinde yoksa oraya da ekle
   if (!Object.values(STATE.players).includes(name)){
     fbPush("players", name);
   }
   fbSet(`sessions/${sid}/activePlayers/${name}`, true);
   inp.value = "";
 
-  // Bu oyuncuyu, oturumdaki rotasyonlu masaların her birinde "sıradaki
-  // ilk rakip" olacak şekilde ekler. Mevcut elin oturanlarına (seated)
-  // dokunulmaz; sadece BİR SONRAKİ elin sırasına (rotation.fullOrder)
-  // dahil edilir - "Yeni El Başlat" tıklandığında bu listeye göre
-  // gerçek oturma düzeni kurulacaktır.
   Object.entries(s.tables||{}).forEach(([tid, t])=>{
     if (!t.usesRotation || !t.rotation || !t.rotation.king) return;
-    if (Array.isArray(t.rotation.fullOrder)){
-      const newOrder = [name].concat(t.rotation.fullOrder);
-      fbSet(`${tablesPath()}/${tid}/rotation/fullOrder`, newOrder);
-    } else if (Array.isArray(t.rotation.queue)){
-      // Eski format (ilk kurulumdan kalma, henüz hiç el bitmemiş).
-      const newQueue = [name].concat(t.rotation.queue);
-      fbSet(`${tablesPath()}/${tid}/rotation/queue`, newQueue);
+
+    let fullOrder = Array.isArray(t.rotation.fullOrder)
+      ? t.rotation.fullOrder.slice()
+      : Array.isArray(t.rotation.queue)
+        ? [...(t.rotation.kingHelper ? [t.rotation.kingHelper] : []), ...t.rotation.queue, t.seated && t.seated.B].filter(Boolean)
+        : [];
+
+    const currentCount = new Set([t.rotation.king, ...fullOrder]).size;
+
+    if (currentCount === 4){
+      const loser = fullOrder[fullOrder.length - 1];
+      const rest = fullOrder.slice(0, -1);
+      fullOrder = [...rest, name, loser];
+    } else {
+      const loser = fullOrder[fullOrder.length - 1];
+      const rest = fullOrder.slice(0, -1);
+      fullOrder = [...rest, name, loser];
     }
+
+    fbSet(`${tablesPath()}/${tid}/rotation/fullOrder`, fullOrder);
   });
 }
 
