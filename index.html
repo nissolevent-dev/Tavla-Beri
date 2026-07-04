@@ -1611,9 +1611,12 @@ function advanceRotation(t, winnerSide){
   // Ortakların SIRASI kritik — Object.keys(partners.B) Firebase'den
   // gelirken sıra garantisi yok, bu yüzden önceki rotation.fullOrder'dan
   // türetiyoruz: orada sıra kayıtlı ve korunuyor.
-  let prevFullOrder = Array.isArray(t.rotation && t.rotation.fullOrder)
-    ? t.rotation.fullOrder.slice()
-    : null;
+  const rawFO = t.rotation && t.rotation.fullOrder;
+  let prevFullOrder = Array.isArray(rawFO)
+    ? rawFO.slice()
+    : (rawFO && typeof rawFO === "object")
+      ? Object.keys(rawFO).sort((a,b)=>+a-+b).map(k=>rawFO[k])
+      : null;
 
   let kingHelper, challengerHelpers;
   if (prevFullOrder){
@@ -1790,11 +1793,18 @@ function startGameForTable(id, autoVidoCount){
     // Kral/yardımcı kuralı ona göre doğru kurulur.
     const sessionNames = new Set(getSessionPlayerNames());
     let fullOrder;
-    if (Array.isArray(t.rotation.fullOrder)){
-      fullOrder = [t.rotation.king, ...t.rotation.fullOrder.filter(n=>n!==t.rotation.king)]
+
+    const rawFull = t.rotation.fullOrder;
+    const parsedFull = Array.isArray(rawFull)
+      ? rawFull
+      : (rawFull && typeof rawFull === "object")
+        ? Object.keys(rawFull).sort((a,b)=>+a-+b).map(k=>rawFull[k])
+        : null;
+
+    if (parsedFull && parsedFull.length > 0){
+      fullOrder = [t.rotation.king, ...parsedFull.filter(n=>n!==t.rotation.king)]
         .filter(n=>sessionNames.has(n));
     } else if (Array.isArray(t.rotation.queue)){
-      // Eski format (ilk kurulumdan kalma): king + kingHelper + queue.
       fullOrder = [t.rotation.king];
       if (t.rotation.kingHelper) fullOrder.push(t.rotation.kingHelper);
       fullOrder.push(...t.rotation.queue);
