@@ -1452,7 +1452,9 @@ function renderTablesScreen(){
 }
 
 function loadSetupPickFromTable(t){
-  if (t && t.rotation && t.rotation.king){
+  if (t && Array.isArray(t.initialRanking) && t.initialRanking.length >= 2){
+    dicePick = { ranking: t.initialRanking.slice() };
+  } else if (t && t.rotation && t.rotation.king){
     const king = t.rotation.king;
     let rest = [];
     if (Array.isArray(t.rotation.fullOrder) && t.rotation.fullOrder.length > 0){
@@ -1462,8 +1464,7 @@ function loadSetupPickFromTable(t){
       rest.push(...t.rotation.queue);
       if (t.seated && t.seated.B) rest.push(t.seated.B);
     }
-    const all = [king, ...rest.filter(n=>n!==king)];
-    dicePick = { ranking: all };
+    dicePick = { ranking: [king, ...rest.filter(n=>n!==king)] };
   } else {
     dicePick = { ranking: [] };
   }
@@ -1741,6 +1742,7 @@ function launchDiceGame(autoVidoCount){
     usesRotation: true,
     usesKingHelper: setup.usesKingHelper,
     format: fmt,
+    initialRanking: dicePick.ranking.slice(),
     game
   });
   goScreen("s4", currentTableId);
