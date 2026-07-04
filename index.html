@@ -1538,8 +1538,13 @@ function seatFromRotation(king, kingHelperWanted, queueFull){
   if (kingHelper) partnersA[kingHelper] = true;
   const partnersB = {};
   challengerHelpers.forEach(n=> partnersB[n] = true);
+
+  const fullOrder = [...challengerHelpers];
+  if (kingHelper) fullOrder.push(kingHelper);
+  fullOrder.push(challenger);
+
   return {
-    rotation: { king, queue: challengerHelpers, kingHelper: kingHelper || null },
+    rotation: { king, queue: challengerHelpers, kingHelper: kingHelper || null, fullOrder },
     seated: { A: king, B: challenger },
     partners: { A: partnersA, B: partnersB },
     usesKingHelper: useHelper
