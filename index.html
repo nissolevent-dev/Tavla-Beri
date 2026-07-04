@@ -1015,23 +1015,20 @@ function addSessionPlayerFromInput(){
   Object.entries(s.tables||{}).forEach(([tid, t])=>{
     if (!t.usesRotation || !t.rotation || !t.rotation.king) return;
 
-    let fullOrder = Array.isArray(t.rotation.fullOrder)
-      ? t.rotation.fullOrder.slice()
-      : Array.isArray(t.rotation.queue)
-        ? [...(t.rotation.kingHelper ? [t.rotation.kingHelper] : []), ...t.rotation.queue, t.seated && t.seated.B].filter(Boolean)
-        : [];
+    const rawFO = t.rotation.fullOrder;
+    let fullOrder = Array.isArray(rawFO)
+      ? rawFO.slice()
+      : (rawFO && typeof rawFO === 'object')
+        ? Object.keys(rawFO).sort((a,b)=>+a-+b).map(k=>rawFO[k])
+        : Array.isArray(t.rotation.queue)
+          ? [...(t.rotation.kingHelper ? [t.rotation.kingHelper] : []), ...t.rotation.queue, t.seated && t.seated.B].filter(Boolean)
+          : [];
 
-    const currentCount = new Set([t.rotation.king, ...fullOrder]).size;
+    if (!fullOrder.length) return;
 
-    if (currentCount === 4){
-      const loser = fullOrder[fullOrder.length - 1];
-      const rest = fullOrder.slice(0, -1);
-      fullOrder = [...rest, name, loser];
-    } else {
-      const loser = fullOrder[fullOrder.length - 1];
-      const rest = fullOrder.slice(0, -1);
-      fullOrder = [...rest, name, loser];
-    }
+    const loser = fullOrder[fullOrder.length - 1];
+    const rest  = fullOrder.slice(0, -1);
+    fullOrder = [...rest, name, loser];
 
     fbSet(`${tablesPath()}/${tid}/rotation/fullOrder`, fullOrder);
   });
