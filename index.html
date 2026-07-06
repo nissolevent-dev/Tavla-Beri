@@ -350,6 +350,7 @@
     <div class="card">
       <div class="unit-note" id="unitNote"></div>
       <div class="small-note" id="rotationNote" style="text-align:center;display:none;"></div>
+      <div id="autoVidoNote" style="display:none;text-align:center;background:var(--gold-dark);color:#fff;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;margin-bottom:8px;">🎲 Bu el otomatik vido ile başlıyor (x2)</div>
 
       <div class="side-box A" id="sideABox"></div>
       <div class="side-box B" id="sideBBox"></div>
@@ -474,27 +475,6 @@
 </div>
 
 <!-- OTOMATİK VİDO MODALI -->
-<div id="autoVidoOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:#fff;border-radius:16px;padding:22px 20px;max-width:300px;width:100%;">
-    <h2 style="margin:0 0 8px;font-size:14px;color:var(--gold-dark);text-transform:uppercase;font-weight:700;letter-spacing:.5px;">🎲 Otomatik Vido</h2>
-    <div id="autoVidoStep1">
-      <div class="small-note" style="margin-bottom:16px;">Bu elde başlangıçta otomatik vido var mı?</div>
-      <div class="row">
-        <button class="btn-soft" id="autoVidoNo">Yok — Normal Başlat</button>
-        <button class="btn-main" id="autoVidoYes" style="margin-top:0;">Var</button>
-      </div>
-    </div>
-    <div id="autoVidoStep2" style="display:none;">
-      <div class="small-note" style="margin-bottom:4px;">Kaç otomatik vido var?</div>
-      <div class="small-note" style="margin-bottom:14px;color:var(--gold-dark);font-weight:700;" id="autoVidoPreview"></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;" id="autoVidoKeypad"></div>
-      <div class="row" style="margin-top:14px;">
-        <button class="btn-soft" id="autoVidoBack">← Geri</button>
-        <button class="btn-main" id="autoVidoConfirm" style="margin-top:0;">Başlat</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- FORMAT SEÇİM MODALI (4 kişide) -->
 <div id="formatModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:20px;">
@@ -823,76 +803,21 @@ document.getElementById("pwModalConfirm").addEventListener("click", ()=>{
 });
 
 /* ===================== OTOMATİK VİDO MODALI ===================== */
-let autoVidoDigit = 0;
-let autoVidoCallback = null; // null = launchDiceGame, fn = nextHand
+/* ===================== OTOMATİK VİDO (her 3. el) =====================
+   Her 3. elde otomatik 1 vido (2x) uygulanır.
+   Eğer bir elde mars olursa veya oturan biri "Görmedi" derse,
+   bir sonraki el de otomatik vido ile başlar ve sayaç sıfırlanır.
+   Masa üzerinde saklanır: { autoVidoNextHand, handsSinceReset } */
 
-function openAutoVidoModal(onConfirm){
-  autoVidoDigit = 0;
-  autoVidoCallback = onConfirm || null;
-  document.getElementById("autoVidoStep1").style.display = "block";
-  document.getElementById("autoVidoStep2").style.display = "none";
-  document.getElementById("autoVidoOverlay").style.display = "flex";
+function shouldAutoVido(t){
+  if (t.autoVidoNextHand) return true;
+  // handsSinceReset: son sayaç sıfırlamasından bu yana oynanan el sayısı.
+  // Yoksa toplam el sayısını kullan (masa yeni kurulmuş).
+  const count = (t.handsSinceReset !== undefined && t.handsSinceReset !== null)
+    ? t.handsSinceReset
+    : Object.keys(t.history||{}).length;
+  return count > 0 && count % 3 === 0;
 }
-function closeAutoVidoModal(){
-  document.getElementById("autoVidoOverlay").style.display = "none";
-}
-function renderAutoVidoPreview(){
-  const count = autoVidoDigit;
-  const multiplier = Math.pow(2, count);
-  document.getElementById("autoVidoPreview").textContent =
-    count === 0
-      ? "0 vido → normal başlar (x1)"
-      : `${count} vido → ${multiplier}x başlar`;
-}
-function buildAutoVidoKeypad(){
-  const kp = document.getElementById("autoVidoKeypad");
-  if (kp.childElementCount) return;
-  const keys = ["1","2","3","4","5","6","7","8","9","","0","⌫"];
-  keys.forEach(k=>{
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pw-key" + (k==="" ? " pw-key-empty" : "");
-    btn.textContent = k;
-    if (k !== ""){
-      btn.addEventListener("click", ()=>{
-        if (k === "⌫"){
-          autoVidoDigit = 0;
-        } else {
-          const n = parseInt(k);
-          if (n >= 1 && n <= 9) autoVidoDigit = n; // tek hane, 1-9 arası
-        }
-        renderAutoVidoPreview();
-      });
-    }
-    kp.appendChild(btn);
-  });
-}
-
-document.getElementById("autoVidoNo").addEventListener("click", ()=>{
-  const cb = autoVidoCallback;
-  closeAutoVidoModal();
-  if (cb) cb(0);
-  else launchDiceGame(0);
-});
-document.getElementById("autoVidoYes").addEventListener("click", ()=>{
-  autoVidoDigit = 0;
-  document.getElementById("autoVidoStep1").style.display = "none";
-  document.getElementById("autoVidoStep2").style.display = "block";
-  buildAutoVidoKeypad();
-  renderAutoVidoPreview();
-});
-document.getElementById("autoVidoBack").addEventListener("click", ()=>{
-  document.getElementById("autoVidoStep1").style.display = "block";
-  document.getElementById("autoVidoStep2").style.display = "none";
-});
-document.getElementById("autoVidoConfirm").addEventListener("click", ()=>{
-  if (autoVidoDigit < 1){ alert("En az 1 vido girin."); return; }
-  const count = autoVidoDigit;
-  const cb = autoVidoCallback;
-  closeAutoVidoModal();
-  if (cb) cb(count);
-  else launchDiceGame(count);
-});
 
 document.getElementById("addPlayerBtn").addEventListener("click", addPlayerFromInput);
 document.getElementById("newPlayerInput").addEventListener("keydown", e=>{
@@ -1795,11 +1720,11 @@ document.getElementById("startDiceGameBtn").addEventListener("click", ()=>{
   if (dicePick.ranking.length === 4){
     openFormatModal((fmt)=>{
       pendingFormat = fmt;
-      openAutoVidoModal();
+      launchDiceGame(0);
     });
   } else {
     pendingFormat = "1v3";
-    openAutoVidoModal();
+    launchDiceGame(0);
   }
 });
 
@@ -1881,7 +1806,8 @@ function startGameForTable(id, autoVidoCount){
       Object.values(oppMap).forEach(p=>{ p.count = autoVidoCount; });
     });
   }
-  fbSet(`${tablesPath()}/${id}/game`, game);
+  // El başlayınca autoVidoNextHand sıfırlanır, handsSinceReset değişmez
+  fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false });
   goScreen("s4", id);
 }
 
@@ -1934,6 +1860,14 @@ function renderGameScreen(){
   const finished = !!g.finished;
   document.getElementById("liveControls").style.display = finished ? "none" : "block";
   document.getElementById("finishedPanel").style.display = finished ? "block" : "none";
+
+  // Otomatik vido uyarısı
+  const autoVidoEl = document.getElementById("autoVidoNote");
+  if (!finished && shouldAutoVido(t)){
+    autoVidoEl.style.display = "block";
+  } else {
+    autoVidoEl.style.display = "none";
+  }
 
   if (!finished && t.seated){
     const nameA = t.seated.A || "A";
@@ -2215,24 +2149,40 @@ function finishHand(tableId, winnerSide, g, isMars){
     gameNo, winner: winnerSide, mars: !!isMars, results, time: Date.now()
   });
 
+  // Otomatik vido tetikleyici: mars veya oturan biri "Görmedi" demiş mi?
+  const seatedNames = new Set([t.seated.A, t.seated.B]);
+  let seatedPlayerGormedí = false;
+  Object.entries(g.pairs||{}).forEach(([aName, oppMap])=>{
+    Object.entries(oppMap||{}).forEach(([bName, p])=>{
+      if (p.closed && seatedNames.has(p.closedLoser)){
+        seatedPlayerGormedí = true;
+      }
+    });
+  });
+  const autoVidoNextHand = !!(isMars || seatedPlayerGormedí);
+
+  // handsSinceReset: bir sonraki elde 3'e bölme için sayaç.
+  // Mars/Görmedi tetiklendiyse sayaç sıfırlanır (0'dan yeniden başlar).
+  // Normal elde mevcut sayaç +1 artar.
+  const prevCount = (t.handsSinceReset !== undefined && t.handsSinceReset !== null)
+    ? t.handsSinceReset
+    : Object.keys(t.history||{}).length - 1; // bu el öncesi sayı
+  const handsSinceReset = autoVidoNextHand ? 0 : prevCount + 1;
+
   let newRotation = null;
   if (t.usesRotation){
-    // ÖNEMLİ: artık seated/partners burada DEĞİŞTİRİLMEZ. El bittiğinde
-    // masa "bitmiş" hâliyle (eski seated/partners ile) ekranda kalır;
-    // gerçek bir sonraki oturma düzeni sadece "Yeni El Başlat"a
-    // basıldığında (startGameForTable içinde) GÜNCEL oyuncu sayısına
-    // göre kurulur. Burada sadece "sıradaki tam liste" rotation alanına
-    // kaydedilir.
     const next = t.format === "2v2"
       ? advanceRotation_2v2(t, winnerSide)
       : advanceRotation(t, winnerSide);
     newRotation = next;
     fbUpdate(`${tablesPath()}/${tableId}`, {
       game: g,
+      autoVidoNextHand,
+      handsSinceReset,
       rotation: { king: next.king, fullOrder: next.fullOrder, format: t.format || "1v3" }
     });
   } else {
-    fbSet(`${tablesPath()}/${tableId}/game`, g);
+    fbUpdate(`${tablesPath()}/${tableId}`, { game: g, autoVidoNextHand, handsSinceReset });
   }
   return newRotation;
 }
@@ -2253,14 +2203,14 @@ function renderFinishedResults(t){
 }
 
 document.getElementById("nextHandBtn").addEventListener("click", ()=>{
-  openAutoVidoModal((count)=> {
-    try{
-      startGameForTable(currentTableId, count);
-    } catch(e){
-      console.error(e);
-      alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
-    }
-  });
+  try{
+    const t = STATE.tables[currentTableId];
+    const autoVidoCount = (t && shouldAutoVido(t)) ? 1 : 0;
+    startGameForTable(currentTableId, autoVidoCount);
+  } catch(e){
+    console.error(e);
+    alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
+  }
 });
 
 /* ===================== SCREEN 6: TOTALS ===================== */
