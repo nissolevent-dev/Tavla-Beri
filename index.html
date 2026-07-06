@@ -2168,7 +2168,11 @@ function finishHand(tableId, winnerSide, g, isMars){
   // sayaç sıfırlanır. Mars/Görmedi de bağımsız olarak bir sonraki eli tetikler
   // ve sayaç sıfırlanır.
   const prevCount = t.handsSinceReset !== undefined ? t.handsSinceReset : 0;
-  const marsOrGormedi = !!(isMars || seatedPlayerGormedí);
+  // Bu el otomatik vidolu muydu? (pairs'te count>0 olan açık çift varsa evet)
+  const wasAutoVidoEl = Object.values(g.pairs||{}).some(m=>
+    Object.values(m).some(p=> (p.count||0) > 0 || (p.closedAtCount||0) > 0)
+  );
+  const marsOrGormedi = wasAutoVidoEl && !!(isMars || seatedPlayerGormedí);
   let handsSinceReset, autoVidoNextHand;
   if (marsOrGormedi){
     autoVidoNextHand = true;
