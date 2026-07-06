@@ -1813,7 +1813,6 @@ function startGameForTable(id, autoVidoCount){
       Object.values(oppMap).forEach(p=>{ p.count = autoVidoCount; });
     });
   }
-  game.isAutoVidoHand = isAutoVidoHand; // game içine gömüyoruz - Firebase asenkron sorununu önler
   const newHandsSinceReset = isAutoVidoHand ? 0 : (t.handsSinceReset !== undefined ? t.handsSinceReset : 1);
   fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false, handsSinceReset: newHandsSinceReset });
   goScreen("s4", id);
@@ -1870,7 +1869,7 @@ function renderGameScreen(){
   document.getElementById("finishedPanel").style.display = finished ? "block" : "none";
 
   // Otomatik vido bandı: el canlıyken ve pairs'te count>0 ise göster
-  const isAutoVidoEl = !finished && Object.values(g.pairs||{}).some(m=>Object.values(m).some(p=>p.count>0&&!p.closed));
+  const isAutoVidoEl = !finished && t.handsSinceReset === 0;
   document.getElementById("autoVidoBand").style.display = isAutoVidoEl ? "block" : "none";
 
   if (!finished && t.seated){
@@ -2167,9 +2166,10 @@ function finishHand(tableId, winnerSide, g, isMars){
   // sayaç sıfırlanır. Mars/Görmedi de bağımsız olarak bir sonraki eli tetikler
   // ve sayaç sıfırlanır.
   const prevCount = t.handsSinceReset !== undefined ? t.handsSinceReset : 0;
-  // Bu el otomatik vidolu muydu? game objesi içine gömülü flag'ten oku.
-  // (t.isAutoVidoHand Firebase asenkron gecikmesinden etkilenebilir, g güvenilir)
-  const wasAutoVidoEl = !!g.isAutoVidoHand;
+  // Bu el otomatik vidolu muydu?
+  // startGameForTable otomatik vido elinde handsSinceReset=0 yazar,
+  // normal elde değiştirmez. Bu en güvenilir işaret.
+  const wasAutoVidoEl = (t.handsSinceReset === 0);
   const marsOrGormedi = wasAutoVidoEl && !!(isMars || seatedPlayerGormedí);
   let handsSinceReset, autoVidoNextHand;
   if (marsOrGormedi){
