@@ -350,7 +350,6 @@
     <div class="card">
       <div class="unit-note" id="unitNote"></div>
       <div class="small-note" id="rotationNote" style="text-align:center;display:none;"></div>
-      <div id="autoVidoNote" style="display:none;text-align:center;background:var(--gold-dark);color:#fff;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;margin-bottom:8px;">🎲 Bu el otomatik vido ile başlıyor (x2)</div>
 
       <div class="side-box A" id="sideABox"></div>
       <div class="side-box B" id="sideBBox"></div>
@@ -475,6 +474,16 @@
 </div>
 
 <!-- OTOMATİK VİDO MODALI -->
+
+<!-- OTOMATİK VİDO MODALI -->
+<div id="autoVidoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:280px;width:100%;text-align:center;">
+    <div style="font-size:36px;margin-bottom:10px;">🎲</div>
+    <h2 style="margin:0 0 8px;font-size:18px;color:var(--gold-dark);font-weight:800;">Otomatik Vido</h2>
+    <div style="font-size:15px;color:#555;margin-bottom:22px;">Bu el <b style="color:var(--gold-dark);font-size:20px;">x2</b> ile başlıyor</div>
+    <button class="btn-main" id="autoVidoModalOk">Tamam</button>
+  </div>
+</div>
 
 <!-- FORMAT SEÇİM MODALI (4 kişide) -->
 <div id="formatModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:20px;">
@@ -810,9 +819,7 @@ document.getElementById("pwModalConfirm").addEventListener("click", ()=>{
    Masa üzerinde saklanır: { autoVidoNextHand, handsSinceReset } */
 
 function shouldAutoVido(t){
-  if (t.autoVidoNextHand) return true;
-  const count = t.handsSinceReset || 1;
-  return count === 3;
+  return !!t.autoVidoNextHand;
 }
 
 document.getElementById("addPlayerBtn").addEventListener("click", addPlayerFromInput);
@@ -1804,8 +1811,11 @@ function startGameForTable(id, autoVidoCount){
       Object.values(oppMap).forEach(p=>{ p.count = autoVidoCount; });
     });
   }
-  // El başlayınca autoVidoNextHand sıfırlanır, handsSinceReset değişmez
-  fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false });
+  // El başlayınca autoVidoNextHand sıfırlanır.
+  // Otomatik vidolu elde sayaç 0'a sıfırlanır → el bittikçe 0→1→2, 3.el de 0+1+1+1=3 → tekrar oto.
+  // Normal elde sayaç değişmez (finishHand artıracak).
+  const newHandsSinceReset = autoVidoCount > 0 ? 0 : (t.handsSinceReset !== undefined ? t.handsSinceReset : 1);
+  fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false, handsSinceReset: newHandsSinceReset });
   goScreen("s4", id);
 }
 
@@ -1858,14 +1868,6 @@ function renderGameScreen(){
   const finished = !!g.finished;
   document.getElementById("liveControls").style.display = finished ? "none" : "block";
   document.getElementById("finishedPanel").style.display = finished ? "block" : "none";
-
-  // Otomatik vido uyarısı
-  const autoVidoEl = document.getElementById("autoVidoNote");
-  if (!finished && shouldAutoVido(t)){
-    autoVidoEl.style.display = "block";
-  } else {
-    autoVidoEl.style.display = "none";
-  }
 
   if (!finished && t.seated){
     const nameA = t.seated.A || "A";
@@ -2157,18 +2159,22 @@ function finishHand(tableId, winnerSide, g, isMars){
       }
     });
   });
-  const autoVidoNextHand = !!(isMars || seatedPlayerGormedí);
-
-  // handsSinceReset: bir sonraki elde 3'e bölme için sayaç.
-  // Mars/Görmedi tetiklendiyse sayaç sıfırlanır (0'dan yeniden başlar).
-  // Normal elde mevcut sayaç +1 artar.
-  const prevCount = (t.handsSinceReset !== undefined && t.handsSinceReset !== null)
-    ? t.handsSinceReset
-    : 1;
-  // Sayaç: 1→2→3 (el 3'te otomatik vido) → tekrar 1→2→3...
-  // Mars/Görmedi: sayaç 1'e sıfırlanır (bir sonraki el otomatik vido, oradan yeniden sayar)
-  const nextCount = autoVidoNextHand ? 1 : (prevCount >= 3 ? 1 : prevCount + 1);
-  const handsSinceReset = nextCount;
+  // Sayaç mantığı: her el bittikçe +1. 3'e ulaşınca → bir sonraki el otomatik vido,
+  // sayaç sıfırlanır. Mars/Görmedi de bağımsız olarak bir sonraki eli tetikler
+  // ve sayaç sıfırlanır.
+  const prevCount = t.handsSinceReset !== undefined ? t.handsSinceReset : 0;
+  const marsOrGormedi = !!(isMars || seatedPlayerGormedí);
+  let handsSinceReset, autoVidoNextHand;
+  if (marsOrGormedi){
+    autoVidoNextHand = true;
+    handsSinceReset = 0; // sıfırdan yeniden say
+  } else if (prevCount + 1 >= 3){
+    autoVidoNextHand = true; // 3. el tamamlandı, sonraki otomatik vido
+    handsSinceReset = 0;
+  } else {
+    autoVidoNextHand = false;
+    handsSinceReset = prevCount + 1;
+  }
 
   let newRotation = null;
   if (t.usesRotation){
@@ -2207,7 +2213,16 @@ document.getElementById("nextHandBtn").addEventListener("click", ()=>{
   try{
     const t = STATE.tables[currentTableId];
     const autoVidoCount = (t && shouldAutoVido(t)) ? 1 : 0;
-    startGameForTable(currentTableId, autoVidoCount);
+    if (autoVidoCount > 0){
+      document.getElementById("autoVidoModal").style.display = "flex";
+      document.getElementById("autoVidoModalOk").onclick = ()=>{
+        document.getElementById("autoVidoModal").style.display = "none";
+        try{ startGameForTable(currentTableId, autoVidoCount); }
+        catch(e){ console.error(e); alert("Yeni el başlatılırken bir hata oluştu: " + e.message); }
+      };
+    } else {
+      startGameForTable(currentTableId, 0);
+    }
   } catch(e){
     console.error(e);
     alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
