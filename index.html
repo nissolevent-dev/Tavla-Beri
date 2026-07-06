@@ -350,6 +350,7 @@
     <div class="card">
       <div class="unit-note" id="unitNote"></div>
       <div class="small-note" id="rotationNote" style="text-align:center;display:none;"></div>
+      <div id="autoVidoBand" style="display:none;text-align:center;background:var(--gold-dark);color:#fff;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;margin-bottom:6px;">🎲 Otomatik vidolu el · x2</div>
 
       <div class="side-box A" id="sideABox"></div>
       <div class="side-box B" id="sideBBox"></div>
@@ -1868,6 +1869,10 @@ function renderGameScreen(){
   const finished = !!g.finished;
   document.getElementById("liveControls").style.display = finished ? "none" : "block";
   document.getElementById("finishedPanel").style.display = finished ? "block" : "none";
+
+  // Otomatik vido bandı: el canlıyken ve pairs'te count>0 ise göster
+  const isAutoVidoEl = !finished && Object.values(g.pairs||{}).some(m=>Object.values(m).some(p=>p.count>0&&!p.closed));
+  document.getElementById("autoVidoBand").style.display = isAutoVidoEl ? "block" : "none";
 
   if (!finished && t.seated){
     const nameA = t.seated.A || "A";
