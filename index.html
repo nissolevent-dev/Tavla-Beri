@@ -811,11 +811,7 @@ document.getElementById("pwModalConfirm").addEventListener("click", ()=>{
 
 function shouldAutoVido(t){
   if (t.autoVidoNextHand) return true;
-  // handsSinceReset: son sayaç sıfırlamasından bu yana oynanan el sayısı.
-  // Yoksa toplam el sayısını kullan (masa yeni kurulmuş).
-  const count = (t.handsSinceReset !== undefined && t.handsSinceReset !== null)
-    ? t.handsSinceReset
-    : Object.keys(t.history||{}).length;
+  const count = t.handsSinceReset || 0;
   return count > 0 && count % 3 === 0;
 }
 
@@ -1707,6 +1703,8 @@ function launchDiceGame(autoVidoCount){
     usesKingHelper: setup.usesKingHelper,
     format: fmt,
     initialRanking: dicePick.ranking.slice(),
+    autoVidoNextHand: false,
+    handsSinceReset: 1,
     game
   });
   goScreen("s4", currentTableId);
@@ -2166,8 +2164,8 @@ function finishHand(tableId, winnerSide, g, isMars){
   // Normal elde mevcut sayaç +1 artar.
   const prevCount = (t.handsSinceReset !== undefined && t.handsSinceReset !== null)
     ? t.handsSinceReset
-    : Object.keys(t.history||{}).length - 1; // bu el öncesi sayı
-  const handsSinceReset = autoVidoNextHand ? 0 : prevCount + 1;
+    : 1;
+  const handsSinceReset = autoVidoNextHand ? 1 : prevCount + 1;
 
   let newRotation = null;
   if (t.usesRotation){
