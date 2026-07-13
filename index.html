@@ -2262,7 +2262,11 @@ function finishHand(tableId, winnerSide, g, isMars){
 
   const gameNo = Object.keys(t.history||{}).length + 1;
   const historyRef = fbPush(`${tablesPath()}/${tableId}/history`, {
-    gameNo, winner: winnerSide, mars: !!isMars, results, time: Date.now()
+    gameNo, winner: winnerSide, mars: !!isMars,
+    winnerSeated: winnerSide === "A" ? t.seated.A : t.seated.B,
+    sideA: Object.keys({[t.seated.A]:true, ...(t.partners.A||{})}),
+    sideB: Object.keys({[t.seated.B]:true, ...(t.partners.B||{})}),
+    results, time: Date.now()
   });
 
   // Geri alma için previousSnapshot: "Yeni El Başlat"a basılınca buradan
@@ -2437,11 +2441,15 @@ function renderTotalsScreen(){
 
   const gw = document.getElementById("grandTotalsWrap");
   const sorted = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+  const totalSum = sorted.reduce((s,[,v])=>s+v, 0);
+  const isBalanced = Math.abs(totalSum) < 0.01;
   gw.innerHTML = sorted.length ? sorted.map(([name,amt])=>{
     const cls = amt>=0?"pos":"neg";
     const sign = amt>=0?"+":"";
     return `<div class="total-row"><span class="nm">${escapeHtml(name)}</span><span class="amt ${cls}">${sign}${amt.toFixed(2)} ₺</span></div>`;
-  }).join("") : `<div class="small-note">Henüz tamamlanmış el yok.</div>`;
+  }).join("") + `<div style="margin-top:8px;font-size:12px;text-align:right;color:${isBalanced?'#2a7a4b':'#c0392b'};">
+    ${isBalanced ? '✓ Dengede' : `⚠ Fark: ${totalSum>0?'+':''}${totalSum.toFixed(2)} ₺`}
+  </div>` : `<div class="small-note">Henüz tamamlanmış el yok.</div>`;
 
   // WhatsApp'ta Paylaş butonu için şu an ekranda gösterilen veriyi sakla.
   lastTotalsShareData = {
@@ -2459,17 +2467,30 @@ function renderTotalsScreen(){
     hw.innerHTML = `<div class="small-note">Henüz tamamlanmış el yok.</div>`;
   } else {
     rows.forEach(h=>{
-      const resStr = Object.entries(h.results||{}).map(([n,r])=>{
+      const results = h.results || {};
+      const winningSide = new Set(Array.isArray(h.sideA) ? (h.winner==="A" ? h.sideA : h.sideB) : []);
+      let winnerName = h.winnerSeated;
+      if (!winnerName || winnerName === "A" || winnerName === "B"){
+        const pos = Object.entries(results)
+          .map(([n,r])=>({ n, v:(r&&typeof r==="object")?(r.total||0):(r||0) }))
+          .filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+        winnerName = pos.length ? pos[0].n : (h.winner||"?");
+      }
+      const winEntries = [], loseEntries = [];
+      Object.entries(results).forEach(([n,r])=>{
         const val = (r && typeof r === "object") ? (r.total||0) : (r||0);
-        return `${n}: ${val>=0?'+':''}${val.toFixed(0)}`;
-      }).join(" · ");
+        const isWinner = winningSide.size > 0 ? winningSide.has(n) : val >= 0;
+        const str = `<span style="color:${isWinner?'var(--green-dark,#2a7a4b)':'#c0392b'};">${escapeHtml(n)} ${val>=0?'+':''}${val.toFixed(0)}</span>`;
+        if (isWinner) winEntries.push(str); else loseEntries.push(str);
+      });
+      const resStr = [...winEntries, ...loseEntries].join(' · ');
       const div = document.createElement("div");
       div.className = "history-item";
       div.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
-            <b>${escapeHtml(h.tname)}</b> · El ${h.gameNo} · ${h.winner} kazandı${h.mars ? ' <span style="color:var(--gold-dark);font-weight:800;">⭐ MARS</span>' : ''}
-            <br><span class="small-note">${escapeHtml(resStr)}</span>
+            <b>${escapeHtml(h.tname)}</b> · El ${h.gameNo} · <b>${escapeHtml(winnerName)}</b> kazandı${h.mars ? ' <span style="color:var(--gold-dark);font-weight:800;">⭐ MARS</span>' : ''}
+            <br><span class="small-note">${resStr}</span>
           </div>
           <button class="btn-danger btn-sm" style="flex:0 0 auto;">Sil</button>
         </div>`;
