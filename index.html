@@ -1428,14 +1428,6 @@ document.getElementById("closeSessionBtn2").addEventListener("click", ()=>{
   goScreen("s7");
 });
 
-document.getElementById("shareWhatsappCloseBtn").addEventListener("click", ()=>{
-  const s = STATE.sessions[STATE.activeSessionId];
-  if (!s) return;
-  const totals = computeSessionHandTotals(s);
-  applyPaymentsToTotals(totals, pendingPayments);
-  shareBalanceCard(s.name, totals, pendingPayments);
-});
-
 function renderCloseSessionScreen(){
   const s = STATE.sessions[STATE.activeSessionId];
   if (!s){ goScreen("s2"); return; }
@@ -2128,6 +2120,14 @@ function renderVidoCallersAndSeers(){
       if (!isSel) btn.style.opacity = isBlocked ? ".2" : ".45";
       btn.disabled = isBlocked;
       btn.textContent = `🎲 ${name}`;
+      const vidoTargets = callableTargets(t, name);
+      if (vidoTargets.length > 0){
+        const maxCount = Math.max(...vidoTargets.map(tgt=>{
+          const {p} = getPairCell(t, name, tgt);
+          return p ? p.count : 0;
+        }));
+        if (maxCount > 0) btn.textContent = `🎲 ${name} (${maxCount+1}. vido)`;
+      }
       btn.addEventListener("click", ()=>{
         if (isBlocked) return;
         const idx = selectedVidoCallers.indexOf(name);
@@ -2350,9 +2350,23 @@ function finishHand(tableId, winnerSide, g, isMars){
 
   let newRotation = null;
   if (t.usesRotation){
+    let rotationWinnerSide = winnerSide;
+    const seatedWinner = winnerSide === "A" ? t.seated.A : t.seated.B;
+    const seatedLoser  = winnerSide === "A" ? t.seated.B : t.seated.A;
+    const vidoLog = g.vidoLog || [];
+    // Kazanan oturan, karşı tarafın oturanının vidasını görmemişse masadan kalkar.
+    const sawOpponentSeated = vidoLog.some(v =>
+      v.opponent === seatedWinner && v.saw && v.caller === seatedLoser
+    );
+    const missedOpponentSeated = vidoLog.some(v =>
+      v.opponent === seatedWinner && !v.saw && v.caller === seatedLoser
+    );
+    if (missedOpponentSeated && !sawOpponentSeated){
+      rotationWinnerSide = winnerSide === "A" ? "B" : "A";
+    }
     const next = t.format === "2v2"
-      ? advanceRotation_2v2(t, winnerSide)
-      : advanceRotation(t, winnerSide);
+      ? advanceRotation_2v2(t, rotationWinnerSide)
+      : advanceRotation(t, rotationWinnerSide);
     newRotation = next;
     fbUpdate(`${tablesPath()}/${tableId}`, {
       game: g,
