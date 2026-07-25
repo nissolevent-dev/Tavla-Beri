@@ -357,6 +357,7 @@
       <div id="liveControls">
         <div style="text-align:right;margin-bottom:4px;">
           <button class="btn-soft btn-sm" id="undoHandBtn" style="font-size:12px;padding:4px 10px;">↩ Bu eli geri al</button>
+          <button class="btn-soft btn-sm" id="undoVidoBtn" style="font-size:12px;padding:4px 10px;display:none;">↩ Vidoyu geri al</button>
         </div>
         <button class="btn-main" id="vidoCalledBtn">🎲 Vido Çekildi</button>
         <div class="row" style="margin-top:16px;">
@@ -557,6 +558,7 @@ let currentTableId = null;
 let dicePick = { ranking: [] };
 let selectedVidoCallers = [];
 let selectedVidoSeers = {};
+let gameBeforeVido = null;
 let sessionPlayerPick = {};
 let forcingNewSession = false;
 let totalsSelectedSession = null;
@@ -1980,6 +1982,9 @@ function startGameForTable(id, autoVidoCount){
     });
   }
   fbSet(`${tablesPath()}/${id}/game`, game);
+  gameBeforeVido = null;
+  const uvBtn = document.getElementById("undoVidoBtn");
+  if (uvBtn) uvBtn.style.display = "none";
   goScreen("s4", id);
 }
 
@@ -2094,6 +2099,9 @@ function renderSideBox(side, t){
    rakiplerinin birleşimi "görenler" listesi olarak çıkar. Varsayılan
    olarak herkes "görmüş" sayılır, görmeyen tek tek çıkarılır. */
 document.getElementById("vidoCalledBtn").addEventListener("click", ()=>{
+  const _t = STATE.tables[currentTableId];
+  if (_t && _t.game) gameBeforeVido = JSON.parse(JSON.stringify(_t.game));
+  document.getElementById("undoVidoBtn").style.display = "none";
   selectedVidoCallers = [];
   selectedVidoSeers = {};
   goScreen("s5");
@@ -2227,6 +2235,7 @@ document.getElementById("confirmVidoBtn").addEventListener("click", ()=>{
     } else {
       fbSet(`${tablesPath()}/${currentTableId}/game`, g);
     }
+    document.getElementById("undoVidoBtn").style.display = "inline-block";
     goScreen("s4");
   } catch(e){
     console.error(e);
@@ -2403,6 +2412,14 @@ document.getElementById("nextHandBtn").addEventListener("click", ()=>{
       alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
     }
   });
+});
+
+document.getElementById("undoVidoBtn").addEventListener("click", ()=>{
+  if (!gameBeforeVido){ alert("Geri alınacak vido yok."); return; }
+  if (!confirm("Son vido iptal edilsin mi?")) return;
+  fbSet(`${tablesPath()}/${currentTableId}/game`, gameBeforeVido);
+  gameBeforeVido = null;
+  document.getElementById("undoVidoBtn").style.display = "none";
 });
 
 document.getElementById("undoHandBtn").addEventListener("click", ()=>{
