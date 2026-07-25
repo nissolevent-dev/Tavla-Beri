@@ -558,7 +558,7 @@ let currentTableId = null;
 let dicePick = { ranking: [] };
 let selectedVidoCallers = [];
 let selectedVidoSeers = {};
-let gameBeforeVido = null;
+let vidoStack = []; // her vido öncesi game snapshot'ı
 let sessionPlayerPick = {};
 let forcingNewSession = false;
 let totalsSelectedSession = null;
@@ -1982,7 +1982,7 @@ function startGameForTable(id, autoVidoCount){
     });
   }
   fbSet(`${tablesPath()}/${id}/game`, game);
-  gameBeforeVido = null;
+  vidoStack = [];
   const uvBtn = document.getElementById("undoVidoBtn");
   if (uvBtn) uvBtn.style.display = "none";
   goScreen("s4", id);
@@ -2100,7 +2100,7 @@ function renderSideBox(side, t){
    olarak herkes "görmüş" sayılır, görmeyen tek tek çıkarılır. */
 document.getElementById("vidoCalledBtn").addEventListener("click", ()=>{
   const _t = STATE.tables[currentTableId];
-  if (_t && _t.game) gameBeforeVido = JSON.parse(JSON.stringify(_t.game));
+  if (_t && _t.game) vidoStack.push(JSON.parse(JSON.stringify(_t.game)));
   document.getElementById("undoVidoBtn").style.display = "none";
   selectedVidoCallers = [];
   selectedVidoSeers = {};
@@ -2415,11 +2415,11 @@ document.getElementById("nextHandBtn").addEventListener("click", ()=>{
 });
 
 document.getElementById("undoVidoBtn").addEventListener("click", ()=>{
-  if (!gameBeforeVido){ alert("Geri alınacak vido yok."); return; }
+  if (!vidoStack.length){ alert("Geri alınacak vido yok."); return; }
   if (!confirm("Son vido iptal edilsin mi?")) return;
-  fbSet(`${tablesPath()}/${currentTableId}/game`, gameBeforeVido);
-  gameBeforeVido = null;
-  document.getElementById("undoVidoBtn").style.display = "none";
+  const prev = vidoStack.pop();
+  fbSet(`${tablesPath()}/${currentTableId}/game`, prev);
+  if (!vidoStack.length) document.getElementById("undoVidoBtn").style.display = "none";
 });
 
 document.getElementById("undoHandBtn").addEventListener("click", ()=>{
