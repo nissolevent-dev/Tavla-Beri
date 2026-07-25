@@ -2333,8 +2333,8 @@ function finishHand(tableId, winnerSide, g, isMars){
   const historyRef = fbPush(`${tablesPath()}/${tableId}/history`, {
     gameNo, winner: winnerSide, mars: !!isMars,
     winnerSeated: winnerSide === "A" ? t.seated.A : t.seated.B,
-    sideA: Object.keys({[t.seated.A]:true, ...(t.partners.A||{})}),
-    sideB: Object.keys({[t.seated.B]:true, ...(t.partners.B||{})}),
+    sideA: Object.keys({[t.seated.A]:true, ...((t.partners&&t.partners.A)||{})}),
+    sideB: Object.keys({[t.seated.B]:true, ...((t.partners&&t.partners.B)||{})}),
     results, vidoLog: g.vidoLog||[], time: Date.now()
   });
 
