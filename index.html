@@ -837,11 +837,19 @@ document.getElementById("pwModalConfirm").addEventListener("click", ()=>{
 let autoVidoDigit = 0;
 let autoVidoCallback = null; // null = launchDiceGame, fn = nextHand
 
-function openAutoVidoModal(onConfirm){
-  autoVidoDigit = 0;
+function openAutoVidoModal(onConfirm, defaultDigit){
+  autoVidoDigit = defaultDigit || 0;
   autoVidoCallback = onConfirm || null;
-  document.getElementById("autoVidoStep1").style.display = "block";
-  document.getElementById("autoVidoStep2").style.display = "none";
+  if (defaultDigit){
+    // Mars sonrası: sayı girişine direkt aç, öneri ile
+    document.getElementById("autoVidoStep1").style.display = "none";
+    document.getElementById("autoVidoStep2").style.display = "block";
+    buildAutoVidoKeypad();
+    renderAutoVidoPreview();
+  } else {
+    document.getElementById("autoVidoStep1").style.display = "block";
+    document.getElementById("autoVidoStep2").style.display = "none";
+  }
   document.getElementById("autoVidoOverlay").style.display = "flex";
 }
 function closeAutoVidoModal(){
@@ -1981,7 +1989,7 @@ function startGameForTable(id, autoVidoCount){
       Object.values(oppMap).forEach(p=>{ p.count = autoVidoCount; });
     });
   }
-  fbSet(`${tablesPath()}/${id}/game`, game);
+  fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false });
   vidoStack = [];
   const uvBtn = document.getElementById("undoVidoBtn");
   if (uvBtn) uvBtn.style.display = "none";
@@ -2380,10 +2388,11 @@ function finishHand(tableId, winnerSide, g, isMars){
     fbUpdate(`${tablesPath()}/${tableId}`, {
       game: g,
       previousSnapshot,
+      autoVidoNextHand: !!isMars,
       rotation: { king: next.king, fullOrder: next.fullOrder, format: t.format || "1v3" }
     });
   } else {
-    fbUpdate(`${tablesPath()}/${tableId}`, { game: g, previousSnapshot });
+    fbUpdate(`${tablesPath()}/${tableId}`, { game: g, previousSnapshot, autoVidoNextHand: !!isMars });
   }
   return newRotation;
 }
@@ -2404,6 +2413,8 @@ function renderFinishedResults(t){
 }
 
 document.getElementById("nextHandBtn").addEventListener("click", ()=>{
+  const _nt = STATE.tables[currentTableId];
+  const _defaultVido = (_nt && _nt.autoVidoNextHand) ? 1 : 0;
   openAutoVidoModal((count)=> {
     try{
       startGameForTable(currentTableId, count);
@@ -2411,7 +2422,7 @@ document.getElementById("nextHandBtn").addEventListener("click", ()=>{
       console.error(e);
       alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
     }
-  });
+  }, _defaultVido);
 });
 
 document.getElementById("undoVidoBtn").addEventListener("click", ()=>{
