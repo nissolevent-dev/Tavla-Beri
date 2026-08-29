@@ -635,6 +635,7 @@ function getPairCell(t, name1, name2){
   return { aName, bName, p: (t.game.pairs[aName]||{})[bName] };
 }
 function callableTargets(t, name){
+  // blockedCaller !== name: bu tur içinde aynı kişi aynı hedefe tekrar çekemez
   const side = sideOf(t, name);
   const g = t.game;
   const targets = [];
@@ -2149,7 +2150,9 @@ function renderSideBox(side, t){
    olarak herkes "görmüş" sayılır, görmeyen tek tek çıkarılır. */
 document.getElementById("vidoCalledBtn").addEventListener("click", ()=>{
   const _t = STATE.tables[currentTableId];
-  if (_t && _t.game) vidoStack.push(JSON.parse(JSON.stringify(_t.game)));
+  if (_t && _t.game){
+    vidoStack.push(JSON.parse(JSON.stringify(_t.game)));
+  }
   document.getElementById("undoVidoBtn").style.display = "none";
   selectedVidoCallers = [];
   selectedVidoSeers = {};
@@ -2263,6 +2266,7 @@ document.getElementById("confirmVidoBtn").addEventListener("click", ()=>{
           p.closed = true;
           p.closedLoser = targetName;
           p.closedAtCount = oldCount;
+          p.blockedCaller = caller;
         }
         g.vidoLog.push({ caller, opponent: targetName, from: oldCount, saw });
       });
@@ -2285,6 +2289,7 @@ document.getElementById("confirmVidoBtn").addEventListener("click", ()=>{
       if (uafBtn) uafBtn.style.display = "block";
     } else {
       fbSet(`${tablesPath()}/${currentTableId}/game`, g);
+      if (STATE.tables[currentTableId]) STATE.tables[currentTableId].game = g;
     }
     document.getElementById("undoVidoBtn").style.display = "inline-block";
     goScreen("s4");
@@ -2419,11 +2424,11 @@ function finishHand(tableId, winnerSide, g, isMars){
     // Kazanan oturan, karşı tarafın oturanının vidasını görmemişse masadan kalkar.
     // Kazanan oturan herhangi bir vidoyu görmemişse masadan kalkar.
     // vidoLog yerine pairs'e bak — daha güvenilir.
-    // pairs[caller][opponent].closedLoser === seatedWinner ise görmemiş demektir.
-    const winnerMissedVido = Object.values(g.pairs||{}).some(oppMap=>
-      Object.values(oppMap||{}).some(p=> p.closed && p.closedLoser === seatedWinner)
-    );
-    if (winnerMissedVido){
+    // Kural: Kazanan oturan, karşı tarafın OTURANININ vidasını görmemişse masadan kalkar.
+    // Ortakların vidasını görmemesi masadan kalkmayı gerektirmez.
+    const pairCell = (g.pairs[t.seated.A]||{})[t.seated.B];
+    const winnerMissedLoserSeated = pairCell && pairCell.closed && pairCell.closedLoser === seatedWinner;
+    if (winnerMissedLoserSeated){
       rotationWinnerSide = winnerSide === "A" ? "B" : "A";
     }
     const next = t.format === "2v2"
@@ -2479,6 +2484,7 @@ document.getElementById("undoFinishedHandBtn").addEventListener("click", ()=>{
   const uvBtnR = document.getElementById("undoVidoBtn");
   if (uvBtnR) uvBtnR.style.display = vidoStack.length ? "inline-block" : "none";
   document.getElementById("undoFinishedHandBtn").style.display = "none";
+  goScreen("s4");
 });
 
 document.getElementById("undoAutoFinishBtn").addEventListener("click", ()=>{
@@ -2503,6 +2509,7 @@ document.getElementById("undoAutoFinishBtn").addEventListener("click", ()=>{
   const uvBtnA = document.getElementById("undoVidoBtn");
   if (uvBtnA) uvBtnA.style.display = vidoStack.length ? "inline-block" : "none";
   document.getElementById("undoAutoFinishBtn").style.display = "none";
+  goScreen("s4");
 });
 
 document.getElementById("nextHandBtn").addEventListener("click", ()=>{
@@ -2544,6 +2551,9 @@ document.getElementById("undoHandBtn").addEventListener("click", ()=>{
     rotation: snap.rotation || t.rotation,
     previousSnapshot: null,
   });
+  try { vidoStack = snap.vidoStack ? JSON.parse(snap.vidoStack) : []; } catch(e){ vidoStack = []; }
+  const uvBtnH = document.getElementById("undoVidoBtn");
+  if (uvBtnH) uvBtnH.style.display = vidoStack.length ? "inline-block" : "none";
 });
 
 
