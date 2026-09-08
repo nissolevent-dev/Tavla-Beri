@@ -557,6 +557,29 @@ const db = firebase.database();
 const ROOT = db.ref("tavla");
 
 
+/* ===================== LOCAL STATE ===================== */
+let STATE = {
+  players: {},
+  settings: { unitAmount: 0 },
+  startingBalances: {},
+  startingBalancesLocked: false,
+  sessions: {},
+  activeSessionId: null,
+  tables: {}
+};
+let currentScreen = "s2";
+let currentTableId = null;
+let dicePick = { ranking: [] };
+let selectedVidoCallers = [];
+let selectedVidoSeers = {};
+let vidoStack = []; // her vido öncesi game snapshot'ı
+let sessionPlayerPick = {};
+let forcingNewSession = false;
+let totalsSelectedSession = null;
+let lastTotalsShareData = null;
+let pendingPayments = { payers: [], receivers: [] };
+
+
 function fbSet(path, value){ ROOT.child(path).set(value); }
 function fbPush(path, value){ return ROOT.child(path).push(value); }
 function fbUpdate(path, value){ ROOT.child(path).update(value); }
@@ -2889,30 +2912,8 @@ goScreen("s2");
 
 ROOT.on("value", snap => {
 
-/* ===================== LOCAL STATE ===================== */
-var STATE = {
-  players: {},
-  settings: { unitAmount: 0 },
-  startingBalances: {},
-  startingBalancesLocked: false,
-  sessions: {},
-  activeSessionId: null,
-  tables: {}
-};
-var currentScreen = "s2";
-var currentTableId = null;
-var dicePick = { ranking: [] };
-var selectedVidoCallers = [];
-var selectedVidoSeers = {};
-var vidoStack = []; // her vido öncesi game snapshot'ı
-var sessionPlayerPick = {};
-var forcingNewSession = false;
-var totalsSelectedSession = null;
-var lastTotalsShareData = null;
-var pendingPayments = { payers: [], receivers: [] };
-
 /* ===================== FIREBASE SYNC ===================== */
-var _firstLoad = true;
+let _firstLoad = true;
   const val = snap.val() || {};
   STATE.players = val.players || {};
   STATE.settings = val.settings || { unitAmount: 0 };
