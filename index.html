@@ -128,6 +128,7 @@
     display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;
   }
   .pick{
+    text-align:center;justify-content:center;
     padding:9px 13px;border-radius:20px;border:1.5px solid var(--line);
     background:var(--card-soft);font-size:14px;font-weight:600;color:var(--ink);
   }
@@ -350,6 +351,7 @@
     <div class="card">
       <div class="unit-note" id="unitNote"></div>
       <div class="small-note" id="rotationNote" style="text-align:center;display:none;"></div>
+      <div id="autoVidoBand" style="display:none;text-align:center;background:var(--gold-dark);color:#fff;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;margin-bottom:6px;">🎲 Otomatik vidolu el · x2</div>
 
       <div class="side-box A" id="sideABox"></div>
       <div class="side-box B" id="sideBBox"></div>
@@ -465,7 +467,7 @@
     <div id="statsWrap"></div>
   </div>
 
-  <!-- SCREEN 7: CLOSE SESSION -->
+  <!-- SCREEN 7: CLOSE SESSION (PAYMENTS) -->
   <div class="screen" id="s7">
     <div class="top-actions">
       <button class="back-link" data-go="s2">← Vazgeç</button>
@@ -476,6 +478,7 @@
       <div class="small-note">Bu oturumdaki el sonuçlarına göre kim kime ne kadar borçlu.</div>
       <div id="closeSessionTotals" style="margin-top:8px;"></div>
     </div>
+
     <button class="btn-main" id="confirmCloseSessionBtn">Oturumu Kapat</button>
   </div>
 
@@ -496,25 +499,14 @@
 </div>
 
 <!-- OTOMATİK VİDO MODALI -->
-<div id="autoVidoOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:#fff;border-radius:16px;padding:22px 20px;max-width:300px;width:100%;">
-    <h2 style="margin:0 0 8px;font-size:14px;color:var(--gold-dark);text-transform:uppercase;font-weight:700;letter-spacing:.5px;">🎲 Otomatik Vido</h2>
-    <div id="autoVidoStep1">
-      <div class="small-note" style="margin-bottom:16px;">Bu elde başlangıçta otomatik vido var mı?</div>
-      <div class="row">
-        <button class="btn-soft" id="autoVidoNo">Yok — Normal Başlat</button>
-        <button class="btn-main" id="autoVidoYes" style="margin-top:0;">Var</button>
-      </div>
-    </div>
-    <div id="autoVidoStep2" style="display:none;">
-      <div class="small-note" style="margin-bottom:4px;">Kaç otomatik vido var?</div>
-      <div class="small-note" style="margin-bottom:14px;color:var(--gold-dark);font-weight:700;" id="autoVidoPreview"></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;" id="autoVidoKeypad"></div>
-      <div class="row" style="margin-top:14px;">
-        <button class="btn-soft" id="autoVidoBack">← Geri</button>
-        <button class="btn-main" id="autoVidoConfirm" style="margin-top:0;">Başlat</button>
-      </div>
-    </div>
+
+<!-- OTOMATİK VİDO MODALI -->
+<div id="autoVidoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:280px;width:100%;text-align:center;">
+    <div style="font-size:36px;margin-bottom:10px;">🎲</div>
+    <h2 style="margin:0 0 8px;font-size:18px;color:var(--gold-dark);font-weight:800;">Otomatik Vido</h2>
+    <div style="font-size:15px;color:#555;margin-bottom:22px;">Bu el <b style="color:var(--gold-dark);font-size:20px;">x2</b> ile başlıyor</div>
+    <button class="btn-main" id="autoVidoModalOk">Tamam</button>
   </div>
 </div>
 
@@ -540,7 +532,6 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
 /* ===================== FIREBASE CONFIG ===================== */
@@ -557,34 +548,24 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const ROOT = db.ref("tavla");
 
-// Anonim authentication — veri okuma auth tamamlandıktan sonra başlar
-firebase.auth().signInAnonymously().catch(e => console.error("Auth hatası:", e));
-firebase.auth().onAuthStateChanged(user => {
-  if (user){
-    console.log("Firebase auth OK:", user.uid);
-    
-/* ===================== LOCAL STATE ===================== */
-let STATE = {
-  players: {},
-  settings: { unitAmount: 0 },
-  startingBalances: {},
-  startingBalancesLocked: false,
-  sessions: {},
-  activeSessionId: null,
-  tables: {}
-};
+
+/* ===================== GLOBAL STATE ===================== */
+let STATE = { players:{}, settings:{unitAmount:0}, startingBalances:{}, startingBalancesLocked:false, sessions:{}, activeSessionId:null, tables:{} };
+let vidoStack = [];
+let autoVidoDigit = 0;
+let autoVidoCallback = null;
+let gameBeforeVido = null;
 let currentScreen = "s2";
 let currentTableId = null;
+let forcingNewSession = false;
+let sessionPlayerPick = {};
 let dicePick = { ranking: [] };
+let totalsSelectedSession = null;
+let pendingPayments = { payers: [], receivers: [] };
 let selectedVidoCallers = [];
 let selectedVidoSeers = {};
-let vidoStack = []; // her vido öncesi game snapshot'ı
-let sessionPlayerPick = {};
-let forcingNewSession = false;
-let totalsSelectedSession = null;
 let lastTotalsShareData = null;
-let pendingPayments = { payers: [], receivers: [] };
-
+let _firstLoad = true;
 
 function fbSet(path, value){ ROOT.child(path).set(value); }
 function fbPush(path, value){ return ROOT.child(path).push(value); }
@@ -623,7 +604,6 @@ function getPairCell(t, name1, name2){
   return { aName, bName, p: (t.game.pairs[aName]||{})[bName] };
 }
 function callableTargets(t, name){
-  // blockedCaller !== name: bu tur içinde aynı kişi aynı hedefe tekrar çekemez
   const side = sideOf(t, name);
   const g = t.game;
   const targets = [];
@@ -863,84 +843,15 @@ document.getElementById("pwModalConfirm").addEventListener("click", ()=>{
 });
 
 /* ===================== OTOMATİK VİDO MODALI ===================== */
-let autoVidoDigit = 0;
-let autoVidoCallback = null; // null = launchDiceGame, fn = nextHand
+/* ===================== OTOMATİK VİDO (her 3. el) =====================
+   Her 3. elde otomatik 1 vido (2x) uygulanır.
+   Eğer bir elde mars olursa veya oturan biri "Görmedi" derse,
+   bir sonraki el de otomatik vido ile başlar ve sayaç sıfırlanır.
+   Masa üzerinde saklanır: { autoVidoNextHand, handsSinceReset } */
 
-function openAutoVidoModal(onConfirm, defaultDigit){
-  autoVidoDigit = defaultDigit || 0;
-  autoVidoCallback = onConfirm || null;
-  if (defaultDigit){
-    // Mars sonrası: sayı girişine direkt aç, öneri ile
-    document.getElementById("autoVidoStep1").style.display = "none";
-    document.getElementById("autoVidoStep2").style.display = "block";
-    buildAutoVidoKeypad();
-    renderAutoVidoPreview();
-  } else {
-    document.getElementById("autoVidoStep1").style.display = "block";
-    document.getElementById("autoVidoStep2").style.display = "none";
-  }
-  document.getElementById("autoVidoOverlay").style.display = "flex";
+function shouldAutoVido(t){
+  return !!t.autoVidoNextHand;
 }
-function closeAutoVidoModal(){
-  document.getElementById("autoVidoOverlay").style.display = "none";
-}
-function renderAutoVidoPreview(){
-  const count = autoVidoDigit;
-  const multiplier = Math.pow(2, count);
-  document.getElementById("autoVidoPreview").textContent =
-    count === 0
-      ? "0 vido → normal başlar (x1)"
-      : `${count} vido → ${multiplier}x başlar`;
-}
-function buildAutoVidoKeypad(){
-  const kp = document.getElementById("autoVidoKeypad");
-  if (kp.childElementCount) return;
-  const keys = ["1","2","3","4","5","6","7","8","9","","0","⌫"];
-  keys.forEach(k=>{
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pw-key" + (k==="" ? " pw-key-empty" : "");
-    btn.textContent = k;
-    if (k !== ""){
-      btn.addEventListener("click", ()=>{
-        if (k === "⌫"){
-          autoVidoDigit = 0;
-        } else {
-          const n = parseInt(k);
-          if (n >= 1 && n <= 9) autoVidoDigit = n; // tek hane, 1-9 arası
-        }
-        renderAutoVidoPreview();
-      });
-    }
-    kp.appendChild(btn);
-  });
-}
-
-document.getElementById("autoVidoNo").addEventListener("click", ()=>{
-  const cb = autoVidoCallback;
-  closeAutoVidoModal();
-  if (cb) cb(0);
-  else launchDiceGame(0);
-});
-document.getElementById("autoVidoYes").addEventListener("click", ()=>{
-  autoVidoDigit = 0;
-  document.getElementById("autoVidoStep1").style.display = "none";
-  document.getElementById("autoVidoStep2").style.display = "block";
-  buildAutoVidoKeypad();
-  renderAutoVidoPreview();
-});
-document.getElementById("autoVidoBack").addEventListener("click", ()=>{
-  document.getElementById("autoVidoStep1").style.display = "block";
-  document.getElementById("autoVidoStep2").style.display = "none";
-});
-document.getElementById("autoVidoConfirm").addEventListener("click", ()=>{
-  if (autoVidoDigit < 1){ alert("En az 1 vido girin."); return; }
-  const count = autoVidoDigit;
-  const cb = autoVidoCallback;
-  closeAutoVidoModal();
-  if (cb) cb(count);
-  else launchDiceGame(count);
-});
 
 document.getElementById("addPlayerBtn").addEventListener("click", addPlayerFromInput);
 document.getElementById("newPlayerInput").addEventListener("keydown", e=>{
@@ -1063,7 +974,6 @@ function addSessionPlayerFromInput(){
   Object.entries(s.tables||{}).forEach(([tid, t])=>{
     if (!t.usesRotation || !t.rotation || !t.rotation.king) return;
 
-    // Firebase array'leri bazen numeric-keyed object olarak döner
     const rawFO = t.rotation.fullOrder;
     let fullOrder = Array.isArray(rawFO)
       ? rawFO.slice()
@@ -1075,9 +985,6 @@ function addSessionPlayerFromInput(){
 
     if (!fullOrder.length) return;
 
-    // Kural: yeni kişi sıranın sonuna girer ama kaybedenden (en sondaki =
-    // bir sonraki elde Kral'ın yardımcısı olacak kişi) ÖNCE kalır.
-    // Bu kural 4->5, 5->6, 6->7 geçişlerinin hepsinde aynıdır.
     const loser = fullOrder[fullOrder.length - 1];
     const rest  = fullOrder.slice(0, -1);
     fullOrder = [...rest, name, loser];
@@ -1142,11 +1049,6 @@ function removeSessionPlayer(name){
       if (!t.usesRotation || !t.rotation) return;
       const next = rebuildRotationWithoutName(t, name);
       if (next){
-        // fullOrder'ı next'in seated/partners'ından türet:
-        // startGameForTable seatFromRotation(king, null, fullOrder) çağırınca
-        // aynı seated/partners'ı üretmeli.
-        // seatFromRotation: son eleman=kingHelper, queue[0]=challenger
-        // Yani fullOrder = [challenger, ...bHelpers, kingHelper?]
         const kH = Object.keys(next.partners.A)[0] || null;
         const bHelpers = Object.keys(next.partners.B);
         const challenger = next.seated.B;
@@ -1195,6 +1097,8 @@ function computeSessionHandTotals(session){
   return totals;
 }
 function applyPaymentsToTotals(totals, payments){
+  // Yeni format: { payers: [{name, amount}], receivers: [{name, amount}] }
+  // Eski format: [{from, to, amount}] — geriye dönük uyumluluk
   if (Array.isArray(payments)){
     payments.forEach(p=>{
       totals[p.from] = (totals[p.from]||0) + p.amount;
@@ -1210,79 +1114,6 @@ function applyPaymentsToTotals(totals, payments){
   }
   return totals;
 }
-
-function renderPaymentInTotals(baseTotals){
-  let totals = baseTotals;
-  if (!totals){
-    const sid = STATE.activeSessionId;
-    const s = STATE.sessions[sid];
-    if (!s) return;
-    totals = computeSessionHandTotals(s);
-  }
-  const remaining = applyPaymentsToTotals(Object.assign({}, totals), pendingPayments);
-  const debtors   = Object.entries(remaining).filter(([,v])=>v<-0.01).map(([n])=>n);
-  const creditors = Object.entries(remaining).filter(([,v])=>v>0.01).map(([n])=>n);
-  const allNames  = Object.keys(totals||{});
-  const payerNames = debtors.length ? debtors : allNames;
-  const recNames   = creditors.length ? creditors : allNames;
-
-  const payerSel = document.getElementById("payerSelect");
-  const recSel   = document.getElementById("receiverSelect");
-  const payerHtml = payerNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-  const recHtml   = recNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-  if (payerSel && payerSel.innerHTML !== payerHtml) payerSel.innerHTML = payerHtml;
-  if (recSel   && recSel.innerHTML   !== recHtml)   recSel.innerHTML   = recHtml;
-
-  const payerWrap = document.getElementById("payerListWrap");
-  if (payerWrap){
-    payerWrap.innerHTML = (pendingPayments.payers||[]).map((p,i)=>`
-      <div class="result-line" style="font-size:13px;">
-        <span>${escapeHtml(p.name)}</span>
-        <span style="display:flex;align-items:center;gap:6px;">
-          <span style="color:#c0392b;">−${p.amount.toFixed(0)} ₺</span>
-          <button class="btn-danger btn-sm" data-type="payer" data-idx="${i}">×</button>
-        </span>
-      </div>`).join("") || `<div class="small-note" style="font-size:12px;">Henüz yok</div>`;
-  }
-
-  const recWrap = document.getElementById("receiverListWrap");
-  if (recWrap){
-    recWrap.innerHTML = (pendingPayments.receivers||[]).map((p,i)=>`
-      <div class="result-line" style="font-size:13px;">
-        <span>${escapeHtml(p.name)}</span>
-        <span style="display:flex;align-items:center;gap:6px;">
-          <span style="color:var(--green-dark,#2a7a4b);">+${p.amount.toFixed(0)} ₺</span>
-          <button class="btn-danger btn-sm" data-type="receiver" data-idx="${i}">×</button>
-        </span>
-      </div>`).join("") || `<div class="small-note" style="font-size:12px;">Henüz yok</div>`;
-  }
-
-  document.querySelectorAll("#payerListWrap [data-type], #receiverListWrap [data-type]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const type = btn.getAttribute("data-type");
-      const idx  = parseInt(btn.getAttribute("data-idx"));
-      if (type === "payer")    pendingPayments.payers.splice(idx, 1);
-      if (type === "receiver") pendingPayments.receivers.splice(idx, 1);
-      renderTotalsScreen();
-    });
-  });
-
-  const totalPaid = (pendingPayments.payers||[]).reduce((s,p)=>s+p.amount, 0);
-  const totalRec  = (pendingPayments.receivers||[]).reduce((s,p)=>s+p.amount, 0);
-  const note = document.getElementById("paymentBalanceNote");
-  if (note){
-    if (totalPaid === 0 && totalRec === 0){
-      note.textContent = "";
-    } else {
-      const diff = totalPaid - totalRec;
-      note.textContent = `Ödenen: ${totalPaid.toFixed(0)} ₺ · Alınan: ${totalRec.toFixed(0)} ₺` +
-        (Math.abs(diff) > 0.01 ? ` · Fark: ${diff>0?'+':''}${diff.toFixed(0)} ₺` : " · ✓ Dengede");
-      note.style.color = Math.abs(diff) > 0.01 ? "#c0392b" : "#2a7a4b";
-    }
-  }
-}
-
-
 function renderBalanceList(container, totals){
   const sorted = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
   container.innerHTML = sorted.length ? sorted.map(([name,amt])=>{
@@ -1473,33 +1304,8 @@ document.getElementById("closeSessionBtn2").addEventListener("click", ()=>{
   pendingPayments = { payers: [], receivers: [] };
   goScreen("s7");
 });
+;
 
-function renderCloseSessionScreen(){
-  const s = STATE.sessions[STATE.activeSessionId];
-  if (!s){ goScreen("s2"); return; }
-  const totals = computeSessionHandTotals(s);
-  renderBalanceList(document.getElementById("closeSessionTotals"), totals);
-}
-
-document.getElementById("addPayerBtn").addEventListener("click", ()=>{
-  const name = document.getElementById("payerSelect").value;
-  const amount = parseFloat(document.getElementById("payerAmount").value);
-  if (!name) return;
-  if (!amount || amount <= 0){ alert("Geçerli bir tutar girin."); return; }
-  pendingPayments.payers.push({ name, amount });
-  document.getElementById("payerAmount").value = "";
-  renderTotalsScreen();
-});
-
-document.getElementById("addReceiverBtn").addEventListener("click", ()=>{
-  const name = document.getElementById("receiverSelect").value;
-  const amount = parseFloat(document.getElementById("receiverAmount").value);
-  if (!name) return;
-  if (!amount || amount <= 0){ alert("Geçerli bir tutar girin."); return; }
-  pendingPayments.receivers.push({ name, amount });
-  document.getElementById("receiverAmount").value = "";
-  renderTotalsScreen();
-});
 
 document.getElementById("confirmCloseSessionBtn").addEventListener("click", ()=>{
   const sid = STATE.activeSessionId;
@@ -1575,11 +1381,9 @@ function renderTablesScreen(){
 }
 
 function loadSetupPickFromTable(t){
-  // İlk zar sırası initialRanking'de saklı — her el boyunca değişmez.
   if (t && Array.isArray(t.initialRanking) && t.initialRanking.length >= 2){
     dicePick = { ranking: t.initialRanking.slice() };
   } else if (t && t.rotation && t.rotation.king){
-    // Eski masalar için fallback
     const king = t.rotation.king;
     let rest = [];
     if (Array.isArray(t.rotation.fullOrder) && t.rotation.fullOrder.length > 0){
@@ -1657,13 +1461,17 @@ function seatFromRotation(king, kingHelperWanted, queueFull){
   let kingHelper = null;
   let queue = queueFull.slice();
   if (useHelper){
+    // Kral'ın yardımcısı isteniyor ve mevcutsa onu kullan; yoksa
+    // kuyruktaki ikinci kişiyi (4. en büyük benzeri) yardımcı yap.
     if (kingHelperWanted && queueFull.includes(kingHelperWanted)){
       kingHelper = kingHelperWanted;
       queue = queueFull.filter(n=>n!==kingHelperWanted);
     } else if (kingHelperWanted){
       kingHelper = kingHelperWanted;
+      // kingHelperWanted kuyrukta değilse (örn. yeni atandı), olduğu gibi kullan
     } else if (queueFull.length >= 2){
-      // Otomatik yardımcı: kuyruğun son elemanı (kaybeden bu konuma gelir).
+      // Otomatik yardımcı: kuyruktaki en büyük (sondaki) kişi - ilk
+      // kurulumda bu "4. en büyük" konumuna denk gelir.
       kingHelper = queueFull[queueFull.length - 1];
       queue = queueFull.slice(0, -1);
     }
@@ -1707,46 +1515,35 @@ function rotationFromRanking(ranking){
   const king = ranking[0];
 
   if (n === 4){
-    // 4 kişi: Kral tek, rakip sırası en küçükten başlar
-    // queueForChallenger = [R4, R2, R3]
     const nonKing = ranking.slice(1);
     const lowest = nonKing[nonKing.length - 1];
     const restInOrder = nonKing.slice(0, -1);
-    const queueForChallenger = [lowest].concat(restInOrder);
-    return seatFromRotation(king, null, queueForChallenger);
+    return seatFromRotation(king, null, [lowest].concat(restInOrder));
   }
 
   if (n === 5){
-    // 5 kişi: A=R1+R4, B=R5+[R2,R3]
-    // queueForChallenger = [R5, R2, R3, R4] → seatFromRotation son elemanı (R4) helper yapar
-    const nonKing = ranking.slice(1); // [R2,R3,R4,R5]
-    const lowest = nonKing[nonKing.length - 1]; // R5
-    const rest = nonKing.slice(0, -1); // [R2,R3,R4]
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const rest = nonKing.slice(0, -1);
     return seatFromRotation(king, null, [lowest, ...rest]);
   }
 
   if (n === 6){
-    // 6 kişi: A=R1+R5, B=R6+[R2,R3,R4]
-    // queueForChallenger = [R6, R2, R3, R4, R5] → son eleman R5 helper olur
-    const nonKing = ranking.slice(1); // [R2,R3,R4,R5,R6]
-    const lowest = nonKing[nonKing.length - 1]; // R6
-    const helper = nonKing[nonKing.length - 2]; // R5
-    const rest = nonKing.slice(0, -2); // [R2,R3,R4]
-    // queue: [R6, R2, R3, R4, R5] — son eleman (R5) otomatik helper seçilir
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const helper = nonKing[nonKing.length - 2];
+    const rest = nonKing.slice(0, -2);
     return seatFromRotation(king, null, [lowest, ...rest, helper]);
   }
 
   if (n === 7){
-    // 7 kişi: A=R1+R6, B=R7+[R2,R3,R4,R5]
-    // queueForChallenger = [R7, R2, R3, R4, R5, R6] → son eleman R6 helper olur
-    const nonKing = ranking.slice(1); // [R2,R3,R4,R5,R6,R7]
-    const lowest = nonKing[nonKing.length - 1]; // R7
-    const helper = nonKing[nonKing.length - 2]; // R6
-    const rest = nonKing.slice(0, -2); // [R2,R3,R4,R5]
+    const nonKing = ranking.slice(1);
+    const lowest = nonKing[nonKing.length - 1];
+    const helper = nonKing[nonKing.length - 2];
+    const rest = nonKing.slice(0, -2);
     return seatFromRotation(king, null, [lowest, ...rest, helper]);
   }
 
-  // Fallback: genel mantık (en küçük önce, kalan büyükten küçüğe)
   const nonKing = ranking.slice(1);
   const lowest = nonKing[nonKing.length - 1];
   const restInOrder = nonKing.slice(0, -1);
@@ -1770,11 +1567,6 @@ function advanceRotation(t, winnerSide){
   // Ortakların SIRASI kritik — Object.keys(partners.B) Firebase'den
   // gelirken sıra garantisi yok, bu yüzden önceki rotation.fullOrder'dan
   // türetiyoruz: orada sıra kayıtlı ve korunuyor.
-  // fullOrder = [challengerHelpers..., kingHelper?, seatedLoser(en sonda)]
-  // Şimdiki el için: king=fullOrder'da yok (zaten kral), challenger da yok
-  // (o ayrı), fullOrder'dan kim kim belli.
-  // Firebase array'leri bazen numeric-keyed object olarak döner.
-  // Her iki durumu da handle et.
   const rawFO = t.rotation && t.rotation.fullOrder;
   let prevFullOrder = Array.isArray(rawFO)
     ? rawFO.slice()
@@ -1782,19 +1574,11 @@ function advanceRotation(t, winnerSide){
       ? Object.keys(rawFO).sort((a,b)=>+a-+b).map(k=>rawFO[k])
       : null;
 
-  // prevFullOrder = [...challengerHelpers, kingHelper?, seatedLoser]
-  // yani son eleman = bu elin seated.B veya seated.A (kaybeden oturan)
-  // Bu listeden sırayı kullanıyoruz. Eğer yoksa (ilk el veya eski format),
-  // partners'tan okuyoruz.
   let kingHelper, challengerHelpers;
   if (prevFullOrder){
-    // prevFullOrder'ın son elemanı bu elin kaybeden oturanıydı (ya da kral tarafı)
-    // Ama biz şu elin partners'ını biliyoruz: prevFullOrder'dan bu elin
-    // partners.A ve partners.B'yi çıkar
     const partnersASet = new Set(Object.keys((t.partners&&t.partners.A)||{}));
     const partnersBSet = new Set(Object.keys((t.partners&&t.partners.B)||{}));
     kingHelper = prevFullOrder.find(n => partnersASet.has(n)) || null;
-    // B-helpers'ı prevFullOrder sırasına göre al
     challengerHelpers = prevFullOrder.filter(n => partnersBSet.has(n));
   } else {
     kingHelper = Object.keys((t.partners&&t.partners.A)||{})[0] || null;
@@ -1850,6 +1634,8 @@ function rotationFromRanking_2v2(ranking){
 function advanceRotation_2v2(t, winnerSide){
   // fullOrder = [loser(helper), queue[0](challenger), queue[1](chalHelper)]
   // Kural: kaybeden oturan HER ZAMAN bir sonraki el helper olur
+  // A kazandı: new loser=queue[0], new queue=[queue[1], loser_eski]
+  // B kazandı: new king=queue[0], new loser=king, new queue=[queue[1], loser_eski]
   const king = t.seated.A;
   const rawFO = t.rotation && t.rotation.fullOrder;
   const fo = Array.isArray(rawFO) ? rawFO
@@ -1911,7 +1697,9 @@ function launchDiceGame(autoVidoCount){
     usesRotation: true,
     usesKingHelper: setup.usesKingHelper,
     format: fmt,
-    initialRanking: dicePick.ranking.slice(), // zar sırası sakla - "Düzenle" için
+    initialRanking: dicePick.ranking.slice(),
+    autoVidoNextHand: false,
+    handsSinceReset: 1,
     game
   });
   goScreen("s4", currentTableId);
@@ -1925,11 +1713,11 @@ document.getElementById("startDiceGameBtn").addEventListener("click", ()=>{
   if (dicePick.ranking.length === 4){
     openFormatModal((fmt)=>{
       pendingFormat = fmt;
-      openAutoVidoModal();
+      launchDiceGame(0);
     });
   } else {
     pendingFormat = "1v3";
-    openAutoVidoModal();
+    launchDiceGame(0);
   }
 });
 
@@ -1954,8 +1742,6 @@ function startGameForTable(id, autoVidoCount){
     const sessionNames = new Set(getSessionPlayerNames());
     let fullOrder;
 
-    // Firebase array'leri bazen numeric-keyed object olarak döner,
-    // Array.isArray false verebilir. Her iki durumu da handle et.
     const rawFull = t.rotation.fullOrder;
     const parsedFull = Array.isArray(rawFull)
       ? rawFull
@@ -2015,12 +1801,13 @@ function startGameForTable(id, autoVidoCount){
     });
   }
   game.isAutoVidoHand = isAutoVidoHand;
-  fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false });
+  const newHandsSinceReset = isAutoVidoHand ? 0 : (t.handsSinceReset !== undefined ? t.handsSinceReset : 1);
+  fbUpdate(`${tablesPath()}/${id}`, { game, autoVidoNextHand: false, handsSinceReset: newHandsSinceReset });
   vidoStack = [];
-  const uafBtn2 = document.getElementById("undoAutoFinishBtn");
-  if (uafBtn2) uafBtn2.style.display = "none";
-  const ufhBtn2 = document.getElementById("undoFinishedHandBtn");
-  if (ufhBtn2) ufhBtn2.style.display = "none";
+  const uafBtn = document.getElementById("undoAutoFinishBtn");
+  if (uafBtn) uafBtn.style.display = "none";
+  const ufhBtn = document.getElementById("undoFinishedHandBtn");
+  if (ufhBtn) ufhBtn.style.display = "none";
   const uvBtn = document.getElementById("undoVidoBtn");
   if (uvBtn) uvBtn.style.display = "none";
   goScreen("s4", id);
@@ -2055,9 +1842,6 @@ function renderGameScreen(){
       : (rawFO && typeof rawFO === 'object')
         ? Object.keys(rawFO).sort((a,b)=>+a-+b).map(k=>rawFO[k])
         : [];
-    // fullOrder = [...B-helpers, kingHelper?, challenger]
-    // Sıradaki oyuncular = challenger (son), sonra diğerleri
-    // Gösterim: tüm fullOrder sırasıyla (challenger öne çekilerek)
     const challenger = fo[fo.length - 1];
     const rest = fo.slice(0, -1).filter(n => n !== challenger);
     const nextPlayers = challenger ? [challenger, ...rest] : rest;
@@ -2079,7 +1863,10 @@ function renderGameScreen(){
   document.getElementById("liveControls").style.display = finished ? "none" : "block";
   document.getElementById("finishedPanel").style.display = finished ? "block" : "none";
 
-  // Kazanma butonlarına oturanların adını yaz
+  // Otomatik vido bandı: el canlıyken ve pairs'te count>0 ise göster
+  const isAutoVidoEl = !finished && !!(g.isAutoVidoHand);
+  document.getElementById("autoVidoBand").style.display = isAutoVidoEl ? "block" : "none";
+
   if (!finished && t.seated){
     const nameA = t.seated.A || "A";
     const nameB = t.seated.B || "B";
@@ -2137,10 +1924,10 @@ function renderSideBox(side, t){
    rakiplerinin birleşimi "görenler" listesi olarak çıkar. Varsayılan
    olarak herkes "görmüş" sayılır, görmeyen tek tek çıkarılır. */
 document.getElementById("vidoCalledBtn").addEventListener("click", ()=>{
-  const _t = STATE.tables[currentTableId];
-  if (_t && _t.game){
-    vidoStack.push(JSON.parse(JSON.stringify(_t.game)));
-  }
+  const t = STATE.tables[currentTableId];
+  if (!t || !t.game) return;
+  // Vido öncesi game'i stack'e ekle (geri al için)
+  vidoStack.push(JSON.parse(JSON.stringify(t.game)));
   document.getElementById("undoVidoBtn").style.display = "none";
   selectedVidoCallers = [];
   selectedVidoSeers = {};
@@ -2154,15 +1941,19 @@ function renderVidoCallersAndSeers(){
 
   const callersWrap = document.getElementById("vidoCallersWrap");
   callersWrap.innerHTML = "";
+
+  // Seçili çekenlerin tarafını belirle
   const selectedSide = selectedVidoCallers.length > 0
     ? sideOf(t, selectedVidoCallers[0])
     : null;
+
   ["A","B"].forEach(side=>{
     sideNames(t, side).forEach(name=>{
       const targets = callableTargets(t, name);
       if (targets.length === 0) return;
       const btn = document.createElement("button");
       const isSel = selectedVidoCallers.includes(name);
+      // Karşı taraftan biri seçildiyse bu taraf disabled
       const isBlocked = selectedSide !== null && side !== selectedSide;
       btn.className = "pick " + (side==="A" ? "sel-a" : "sel-b") + (isSel ? "" : " not-selected-caller");
       if (!isSel) btn.style.opacity = isBlocked ? ".2" : ".45";
@@ -2254,7 +2045,7 @@ document.getElementById("confirmVidoBtn").addEventListener("click", ()=>{
           p.closed = true;
           p.closedLoser = targetName;
           p.closedAtCount = oldCount;
-          p.blockedCaller = caller;
+          p.blockedCaller = caller; // görmese de bu turda kapandı, tekrar çekilemez
         }
         g.vidoLog.push({ caller, opponent: targetName, from: oldCount, saw });
       });
@@ -2273,12 +2064,13 @@ document.getElementById("confirmVidoBtn").addEventListener("click", ()=>{
 
     if (handJustFinished){
       finishHand(currentTableId, finishWinnerSide, g);
+      // Otomatik kapandı — geri al butonu göster
       const uafBtn = document.getElementById("undoAutoFinishBtn");
       if (uafBtn) uafBtn.style.display = "block";
     } else {
       fbSet(`${tablesPath()}/${currentTableId}/game`, g);
-      if (STATE.tables[currentTableId]) STATE.tables[currentTableId].game = g;
     }
+    // Vido geri al butonu — bir önceki game state'i sakla
     document.getElementById("undoVidoBtn").style.display = "inline-block";
     goScreen("s4");
   } catch(e){
@@ -2384,7 +2176,7 @@ function finishHand(tableId, winnerSide, g, isMars){
 
   const gameNo = Object.keys(t.history||{}).length + 1;
   const historyRef = fbPush(`${tablesPath()}/${tableId}/history`, {
-    gameNo, winner: winnerSide, mars: !!isMars, autoVido: !!g.isAutoVidoHand,
+    gameNo, winner: winnerSide, mars: !!isMars, autoVido: (t.handsSinceReset === 0),
     winnerSeated: winnerSide === "A" ? t.seated.A : t.seated.B,
     sideA: Object.keys({[t.seated.A]:true, ...((t.partners&&t.partners.A)||{})}),
     sideB: Object.keys({[t.seated.B]:true, ...((t.partners&&t.partners.B)||{})}),
@@ -2392,28 +2184,63 @@ function finishHand(tableId, winnerSide, g, isMars){
     results, vidoLog: g.vidoLog||[], time: Date.now()
   });
 
-  // Geri alma için previousSnapshot: "Yeni El Başlat"a basılınca buradan
-  // bitirilmemiş haline dönebilsin.
   const previousSnapshot = {
     gameJson: JSON.stringify(gameBeforeFinish), // string olarak sakla - Firebase nested sorununu önler
     seated: t.seated ? JSON.parse(JSON.stringify(t.seated)) : null,
     partners: t.partners ? JSON.parse(JSON.stringify(t.partners)) : null,
     rotation: t.rotation ? JSON.parse(JSON.stringify(t.rotation)) : null,
+    handsSinceReset: t.handsSinceReset,
+    autoVidoNextHand: !!t.autoVidoNextHand,
     historyKey: historyRef ? historyRef.key : null,
     vidoStack: JSON.stringify(vidoStack||[]),
   };
 
+  // Otomatik vido tetikleyici: mars veya oturan biri "Görmedi" demiş mi?
+  // Tetikle: oturanın vidosu oturan tarafından görülmediğinde
+  // = pairs[seatedA][seatedB] kapandı ve closedLoser oturan ise
+  const pairAB = (g.pairs[t.seated.A]||{})[t.seated.B];
+  const pairBA_loser = Object.entries(g.pairs||{}).some(([a, oppMap])=>
+    a !== t.seated.A && Object.entries(oppMap||{}).some(([b, p])=>
+      p.closed && (p.closedLoser === t.seated.A || p.closedLoser === t.seated.B) &&
+      (a === t.seated.A || a === t.seated.B || b === t.seated.A || b === t.seated.B)
+    )
+  );
+  const seatedPlayerGormedí = !!(
+    (pairAB && pairAB.closed && (pairAB.closedLoser === t.seated.A || pairAB.closedLoser === t.seated.B))
+  );
+  // Sayaç mantığı: her el bittikçe +1. 3'e ulaşınca → bir sonraki el otomatik vido,
+  // sayaç sıfırlanır. Mars/Görmedi de bağımsız olarak bir sonraki eli tetikler
+  // ve sayaç sıfırlanır.
+  const prevCount = t.handsSinceReset !== undefined ? t.handsSinceReset : 0;
+  // Bu el otomatik vidolu muydu?
+  // startGameForTable otomatik vido elinde handsSinceReset=0 yazar,
+  // normal elde değiştirmez. Bu en güvenilir işaret.
+  const wasAutoVidoEl = !!(g.isAutoVidoHand);
+  const marsOrGormedi = wasAutoVidoEl && !!(isMars || seatedPlayerGormedí);
+  let handsSinceReset, autoVidoNextHand;
+  if (marsOrGormedi){
+    autoVidoNextHand = true;
+    handsSinceReset = 0; // sıfırdan yeniden say
+  } else if (prevCount + 1 >= 3){
+    autoVidoNextHand = true; // 3. el tamamlandı, sonraki otomatik vido
+    handsSinceReset = 0;
+  } else {
+    autoVidoNextHand = false;
+    handsSinceReset = prevCount + 1;
+  }
+
   let newRotation = null;
   if (t.usesRotation){
+    // Özel kural: Kazanan tarafın oturanı hiç vido görmediyse
+    // (vidoLog'da o kişiye ait saw=true kaydı yoksa) rotasyonda kaybetmiş sayılır.
+    // Yani karşı tarafın oturanı masada kalır, görmedi oturan yardımcı olur.
     let rotationWinnerSide = winnerSide;
     const seatedWinner = winnerSide === "A" ? t.seated.A : t.seated.B;
     const seatedLoser  = winnerSide === "A" ? t.seated.B : t.seated.A;
-    const vidoLog = g.vidoLog || [];
-    // Kazanan oturan, karşı tarafın oturanının vidasını görmemişse masadan kalkar.
-    // Kazanan oturan herhangi bir vidoyu görmemişse masadan kalkar.
-    // vidoLog yerine pairs'e bak — daha güvenilir.
     // Kural: Kazanan oturan, karşı tarafın OTURANININ vidasını görmemişse masadan kalkar.
     // Ortakların vidasını görmemesi masadan kalkmayı gerektirmez.
+    // pairs[seatedA][seatedB] hücresi: seatedA'nın seatedB'ye karşı çiftini gösterir.
+    // closedLoser === seatedWinner ise kazanan oturan bu çifti görmemiş demektir.
     const pairCell = (g.pairs[t.seated.A]||{})[t.seated.B];
     const winnerMissedLoserSeated = pairCell && pairCell.closed && pairCell.closedLoser === seatedWinner;
     if (winnerMissedLoserSeated){
@@ -2426,11 +2253,12 @@ function finishHand(tableId, winnerSide, g, isMars){
     fbUpdate(`${tablesPath()}/${tableId}`, {
       game: g,
       previousSnapshot,
-      autoVidoNextHand: !!isMars,
+      autoVidoNextHand,
+      handsSinceReset,
       rotation: { king: next.king, fullOrder: next.fullOrder, format: t.format || "1v3" }
     });
   } else {
-    fbUpdate(`${tablesPath()}/${tableId}`, { game: g, previousSnapshot, autoVidoNextHand: !!isMars });
+    fbUpdate(`${tablesPath()}/${tableId}`, { game: g, previousSnapshot, autoVidoNextHand, handsSinceReset });
   }
   return newRotation;
 }
@@ -2438,6 +2266,7 @@ function finishHand(tableId, winnerSide, g, isMars){
 function renderFinishedResults(t){
   const g = t.game;
   const wrap = document.getElementById("finishedResults");
+  // El geri al butonu — previousSnapshot varsa göster
   const ufhBtn = document.getElementById("undoFinishedHandBtn");
   if (ufhBtn) ufhBtn.style.display = t.previousSnapshot ? "block" : "none";
   wrap.innerHTML = Object.entries(g.results||{}).map(([name,r])=>{
@@ -2466,8 +2295,11 @@ document.getElementById("undoFinishedHandBtn").addEventListener("click", ()=>{
     seated: snap.seated,
     partners: snap.partners,
     rotation: snap.rotation,
-    previousSnapshot: null
+    previousSnapshot: null,
+    handsSinceReset: snap.handsSinceReset,
+    autoVidoNextHand: snap.autoVidoNextHand || false
   });
+  // vidoStack'i restore et
   try { vidoStack = snap.vidoStack ? JSON.parse(snap.vidoStack) : []; } catch(e){ vidoStack = []; }
   const uvBtnR = document.getElementById("undoVidoBtn");
   if (uvBtnR) uvBtnR.style.display = vidoStack.length ? "inline-block" : "none";
@@ -2479,6 +2311,7 @@ document.getElementById("undoAutoFinishBtn").addEventListener("click", ()=>{
   if (!confirm("El geri alınsın ve vido ekranına dönülsün mü?")) return;
   const t = STATE.tables[currentTableId];
   if (!t || !t.game) return;
+  // game'i bitirilmemiş hale getir
   const snap = t.previousSnapshot;
   if (snap){
     const gameToRestore = snap.gameJson ? JSON.parse(snap.gameJson) : snap.game;
@@ -2490,7 +2323,9 @@ document.getElementById("undoAutoFinishBtn").addEventListener("click", ()=>{
       seated: snap.seated,
       partners: snap.partners,
       rotation: snap.rotation,
-      previousSnapshot: null
+      previousSnapshot: null,
+      handsSinceReset: snap.handsSinceReset,
+      autoVidoNextHand: snap.autoVidoNextHand || false
     });
   }
   try { vidoStack = snap.vidoStack ? JSON.parse(snap.vidoStack) : []; } catch(e){ vidoStack = []; }
@@ -2501,16 +2336,23 @@ document.getElementById("undoAutoFinishBtn").addEventListener("click", ()=>{
 });
 
 document.getElementById("nextHandBtn").addEventListener("click", ()=>{
-  const _nt = STATE.tables[currentTableId];
-  const _defaultVido = (_nt && _nt.autoVidoNextHand) ? 1 : 0;
-  openAutoVidoModal((count)=> {
-    try{
-      startGameForTable(currentTableId, count);
-    } catch(e){
-      console.error(e);
-      alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
+  try{
+    const t = STATE.tables[currentTableId];
+    const autoVidoCount = (t && shouldAutoVido(t)) ? 1 : 0;
+    if (autoVidoCount > 0){
+      document.getElementById("autoVidoModal").style.display = "flex";
+      document.getElementById("autoVidoModalOk").onclick = ()=>{
+        document.getElementById("autoVidoModal").style.display = "none";
+        try{ startGameForTable(currentTableId, autoVidoCount); }
+        catch(e){ console.error(e); alert("Yeni el başlatılırken bir hata oluştu: " + e.message); }
+      };
+    } else {
+      startGameForTable(currentTableId, 0);
     }
-  }, _defaultVido);
+  } catch(e){
+    console.error(e);
+    alert("Yeni el başlatılırken bir hata oluştu: " + e.message);
+  }
 });
 
 document.getElementById("undoVidoBtn").addEventListener("click", ()=>{
@@ -2537,6 +2379,8 @@ document.getElementById("undoHandBtn").addEventListener("click", ()=>{
     seated: snap.seated || t.seated,
     partners: snap.partners || t.partners,
     rotation: snap.rotation || t.rotation,
+    handsSinceReset: snap.handsSinceReset !== undefined ? snap.handsSinceReset : 1,
+    autoVidoNextHand: !!snap.autoVidoNextHand,
     previousSnapshot: null,
   });
   try { vidoStack = snap.vidoStack ? JSON.parse(snap.vidoStack) : []; } catch(e){ vidoStack = []; }
@@ -2544,7 +2388,7 @@ document.getElementById("undoHandBtn").addEventListener("click", ()=>{
   if (uvBtnH) uvBtnH.style.display = vidoStack.length ? "inline-block" : "none";
 });
 
-
+/* ===================== SCREEN 6: TOTALS ===================== */
 document.getElementById("totalsSessionSelect").addEventListener("change", e=>{
   totalsSelectedSession = e.target.value;
   renderTotalsScreen();
@@ -2573,6 +2417,33 @@ document.getElementById("shareWhatsappTotalsBtn").addEventListener("click", ()=>
 function renderTotalsScreen(){
   if (totalsSelectedSession === null){
     totalsSelectedSession = STATE.activeSessionId || "ALL";
+  }
+  // Seçili oturum değişince pendingPayments'ı yükle
+  const _sessId = totalsSelectedSession && totalsSelectedSession !== "ALL" ? totalsSelectedSession : null;
+  const _ppKey = _sessId || "ALL";
+  if (_ppKey !== window._ppLoadedFor) {
+    window._ppLoadedFor = _ppKey;
+    const toArr = v => v ? Object.values(v) : [];
+    const ppFromSess = (s) => {
+      const _pp = s && s.pendingPayments;
+      if (!_pp || typeof _pp !== 'object') return { payers: [], receivers: [] };
+      return {
+        payers:    Array.isArray(_pp.payers)    ? _pp.payers    : toArr(_pp.payers),
+        receivers: Array.isArray(_pp.receivers) ? _pp.receivers : toArr(_pp.receivers)
+      };
+    };
+    if (_sessId && STATE.sessions[_sessId]){
+      pendingPayments = ppFromSess(STATE.sessions[_sessId]);
+    } else {
+      // ALL: tüm oturumların pendingPayments'larını birleştir
+      const allPayers = [], allReceivers = [];
+      Object.values(STATE.sessions||{}).forEach(s => {
+        const pp = ppFromSess(s);
+        allPayers.push(...pp.payers);
+        allReceivers.push(...pp.receivers);
+      });
+      pendingPayments = { payers: allPayers, receivers: allReceivers };
+    }
   }
   const sel = document.getElementById("totalsSessionSelect");
   const sessionEntries = Object.entries(STATE.sessions||{}).sort((a,b)=> (b[1].createdAt||0)-(a[1].createdAt||0));
@@ -2665,9 +2536,10 @@ function renderTotalsScreen(){
     rows.forEach(h=>{
       const results = h.results || {};
       const winningSide = new Set(Array.isArray(h.sideA) ? (h.winner==="A" ? h.sideA : h.sideB) : []);
+      // Kazanan ismi: winnerSeated varsa kullan, yoksa results'tan en yüksek pozitifi bul
       let winnerName = h.winnerSeated;
       if (!winnerName || winnerName === "A" || winnerName === "B"){
-        const pos = Object.entries(results)
+        const pos = Object.entries(h.results||{})
           .map(([n,r])=>({ n, v:(r&&typeof r==="object")?(r.total||0):(r||0) }))
           .filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
         winnerName = pos.length ? pos[0].n : (h.winner||"?");
@@ -2722,9 +2594,10 @@ function renderTotalsScreen(){
     });
   }
 
-  // Ödeme/Tahsilat bölümünü güncelle
+  // Ödeme Yap bölümü — ödeme uygulanmadan önceki totals'ı geçir
   const totalsBeforePayment = {};
   Object.entries(totals).forEach(([n,v])=>{
+    // pendingPayments'ı geri al: payers için ekle, receivers için çıkar
     let adj = 0;
     (pendingPayments.payers||[]).forEach(p=>{ if(p.name===n) adj+=p.amount; });
     (pendingPayments.receivers||[]).forEach(p=>{ if(p.name===n) adj-=p.amount; });
@@ -2732,6 +2605,121 @@ function renderTotalsScreen(){
   });
   renderPaymentInTotals(totalsBeforePayment);
 }
+
+function renderPaymentInTotals(baseTotals){
+  let totals = baseTotals;
+  if (!totals){
+    const sid = STATE.activeSessionId;
+    const s = STATE.sessions[sid];
+    if (!s) return;
+    totals = computeSessionHandTotals(s);
+  }
+
+  // Selectleri doldur: ödeyen = eksi bakiyeli, alan = artı bakiyeli
+  const remaining = applyPaymentsToTotals(Object.assign({}, totals), pendingPayments);
+  const debtors   = Object.entries(remaining).filter(([,v])=>v<-0.01).map(([n])=>n);
+  const creditors = Object.entries(remaining).filter(([,v])=>v>0.01).map(([n])=>n);
+  const allNames  = Object.keys(totals||{});
+  const payerNames = debtors.length ? debtors : allNames;
+  const recNames   = creditors.length ? creditors : allNames;
+
+  const payerSel = document.getElementById("payerSelect");
+  const recSel   = document.getElementById("receiverSelect");
+  const payerHtml = payerNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  const recHtml   = recNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  if (payerSel && payerSel.innerHTML !== payerHtml) payerSel.innerHTML = payerHtml;
+  if (recSel   && recSel.innerHTML   !== recHtml)   recSel.innerHTML   = recHtml;
+
+  // Ödeyen listesi
+  const payerWrap = document.getElementById("payerListWrap");
+  if (payerWrap){
+    payerWrap.innerHTML = (pendingPayments.payers||[]).map((p,i)=>`
+      <div class="result-line" style="font-size:13px;">
+        <span>${escapeHtml(p.name)}</span>
+        <span style="display:flex;align-items:center;gap:6px;">
+          <span style="color:#c0392b;">−${p.amount.toFixed(0)} ₺</span>
+          <button class="btn-danger btn-sm" data-type="payer" data-idx="${i}">×</button>
+        </span>
+      </div>`).join("") || `<div class="small-note" style="font-size:12px;">Henüz yok</div>`;
+  }
+
+  // Alan listesi
+  const recWrap = document.getElementById("receiverListWrap");
+  if (recWrap){
+    recWrap.innerHTML = (pendingPayments.receivers||[]).map((p,i)=>`
+      <div class="result-line" style="font-size:13px;">
+        <span>${escapeHtml(p.name)}</span>
+        <span style="display:flex;align-items:center;gap:6px;">
+          <span style="color:var(--green-dark,#2a7a4b);">+${p.amount.toFixed(0)} ₺</span>
+          <button class="btn-danger btn-sm" data-type="receiver" data-idx="${i}">×</button>
+        </span>
+      </div>`).join("") || `<div class="small-note" style="font-size:12px;">Henüz yok</div>`;
+  }
+
+  // Sil butonları
+  document.querySelectorAll("#payerListWrap [data-type], #receiverListWrap [data-type]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const type = btn.getAttribute("data-type");
+      const idx  = parseInt(btn.getAttribute("data-idx"));
+      if (type === "payer")    pendingPayments.payers.splice(idx, 1);
+      if (type === "receiver") pendingPayments.receivers.splice(idx, 1);
+      const _sid3 = totalsSelectedSession && totalsSelectedSession !== "ALL" ? totalsSelectedSession : STATE.activeSessionId;
+      if (_sid3){
+        fbUpdate(`sessions/${_sid3}`, { pendingPayments });
+        if (STATE.sessions[_sid3]) STATE.sessions[_sid3].pendingPayments = JSON.parse(JSON.stringify(pendingPayments));
+        window._ppLoadedFor = _sid3;
+      }
+      renderTotalsScreen();
+    });
+  });
+
+  // Denge notu
+  const totalPaid = (pendingPayments.payers||[]).reduce((s,p)=>s+p.amount, 0);
+  const totalRec  = (pendingPayments.receivers||[]).reduce((s,p)=>s+p.amount, 0);
+  const note = document.getElementById("paymentBalanceNote");
+  if (note){
+    if (totalPaid === 0 && totalRec === 0){
+      note.textContent = "";
+    } else {
+      const diff = totalPaid - totalRec;
+      note.textContent = `Ödenen: ${totalPaid.toFixed(0)} ₺ · Alınan: ${totalRec.toFixed(0)} ₺` +
+        (Math.abs(diff) > 0.01 ? ` · Fark: ${diff>0?'+':''}${diff.toFixed(0)} ₺` : " · ✓ Dengede");
+      note.style.color = Math.abs(diff) > 0.01 ? "#c0392b" : "#2a7a4b";
+    }
+  }
+}
+
+document.getElementById("addPayerBtn").addEventListener("click", ()=>{
+  const name = document.getElementById("payerSelect").value;
+  const amount = parseFloat(document.getElementById("payerAmount").value);
+  if (!name) return;
+  if (!amount || amount <= 0){ alert("Geçerli bir tutar girin."); return; }
+  pendingPayments.payers.push({ name, amount });
+  document.getElementById("payerAmount").value = "";
+  const _sid1 = totalsSelectedSession && totalsSelectedSession !== "ALL" ? totalsSelectedSession : STATE.activeSessionId;
+  if (_sid1){
+    fbUpdate(`sessions/${_sid1}`, { pendingPayments });
+    if (STATE.sessions[_sid1]) STATE.sessions[_sid1].pendingPayments = JSON.parse(JSON.stringify(pendingPayments));
+    window._ppLoadedFor = _sid1;
+  }
+  renderTotalsScreen();
+});
+
+document.getElementById("addReceiverBtn").addEventListener("click", ()=>{
+  const name = document.getElementById("receiverSelect").value;
+  const amount = parseFloat(document.getElementById("receiverAmount").value);
+  if (!name) return;
+  if (!amount || amount <= 0){ alert("Geçerli bir tutar girin."); return; }
+  pendingPayments.receivers.push({ name, amount });
+  document.getElementById("receiverAmount").value = "";
+  const _sid2 = totalsSelectedSession && totalsSelectedSession !== "ALL" ? totalsSelectedSession : STATE.activeSessionId;
+  if (_sid2){
+    fbUpdate(`sessions/${_sid2}`, { pendingPayments });
+    if (STATE.sessions[_sid2]) STATE.sessions[_sid2].pendingPayments = JSON.parse(JSON.stringify(pendingPayments));
+    window._ppLoadedFor = _sid2;
+  }
+  renderTotalsScreen();
+});
 
 
 /* ===================== SCREEN 8: İSTATİSTİKLER ===================== */
@@ -2919,7 +2907,6 @@ goScreen("s2");
 ROOT.on("value", snap => {
 
 /* ===================== FIREBASE SYNC ===================== */
-let _firstLoad = true;
   const val = snap.val() || {};
   STATE.players = val.players || {};
   STATE.settings = val.settings || { unitAmount: 0 };
@@ -2927,6 +2914,7 @@ let _firstLoad = true;
   STATE.startingBalancesLocked = !!val.startingBalancesLocked;
   STATE.sessions = val.sessions || {};
   STATE.activeSessionId = val.activeSessionId || null;
+
   const activeSession = STATE.activeSessionId ? STATE.sessions[STATE.activeSessionId] : null;
   STATE.tables = activeSession ? (activeSession.tables || {}) : {};
   if (_firstLoad){
@@ -2935,8 +2923,6 @@ let _firstLoad = true;
     if (_live){ goScreen("s4", _live[0]); return; }
   }
   renderAll();
-    });
-  }
 });
 
 </script>
