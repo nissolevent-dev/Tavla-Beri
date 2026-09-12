@@ -111,7 +111,7 @@
   .btn-sm{padding:7px 10px;font-size:13px;border-radius:9px;}
   .mode-active{background:var(--gold) !important;color:#2a1d05 !important;border-color:var(--gold) !important;}
 
-  .chip-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .chip-list{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;}
   .chip{
     background:var(--card-soft);
     border:1.5px solid var(--line);
@@ -125,7 +125,7 @@
   .chip button{background:none;border:none;color:var(--red);font-size:15px;padding:0;font-weight:900;}
 
   .player-pick{
-    display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;
   }
   .pick{
     padding:9px 13px;border-radius:20px;border:1.5px solid var(--line);
@@ -556,6 +556,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const ROOT = db.ref("tavla");
 
+ROOT.on("value", snap => {
 
 /* ===================== LOCAL STATE ===================== */
 let STATE = {
@@ -579,6 +580,24 @@ let totalsSelectedSession = null;
 let lastTotalsShareData = null;
 let pendingPayments = { payers: [], receivers: [] };
 
+/* ===================== FIREBASE SYNC ===================== */
+let _firstLoad = true;
+  const val = snap.val() || {};
+  STATE.players = val.players || {};
+  STATE.settings = val.settings || { unitAmount: 0 };
+  STATE.startingBalances = val.startingBalances || {};
+  STATE.startingBalancesLocked = !!val.startingBalancesLocked;
+  STATE.sessions = val.sessions || {};
+  STATE.activeSessionId = val.activeSessionId || null;
+  const activeSession = STATE.activeSessionId ? STATE.sessions[STATE.activeSessionId] : null;
+  STATE.tables = activeSession ? (activeSession.tables || {}) : {};
+  if (_firstLoad){
+    _firstLoad = false;
+    const _live = Object.entries(STATE.tables||{}).find(([,t])=>t.game&&!t.game.finished);
+    if (_live){ goScreen("s4", _live[0]); return; }
+  }
+  renderAll();
+});
 
 function fbSet(path, value){ ROOT.child(path).set(value); }
 function fbPush(path, value){ return ROOT.child(path).push(value); }
@@ -2909,28 +2928,6 @@ function escapeHtml(s){
 
 /* Uygulama açılışta Masalar sekmesinde başlasın. */
 goScreen("s2");
-
-ROOT.on("value", snap => {
-
-/* ===================== FIREBASE SYNC ===================== */
-let _firstLoad = true;
-  const val = snap.val() || {};
-  STATE.players = val.players || {};
-  STATE.settings = val.settings || { unitAmount: 0 };
-  STATE.startingBalances = val.startingBalances || {};
-  STATE.startingBalancesLocked = !!val.startingBalancesLocked;
-  STATE.sessions = val.sessions || {};
-  STATE.activeSessionId = val.activeSessionId || null;
-  const activeSession = STATE.activeSessionId ? STATE.sessions[STATE.activeSessionId] : null;
-  STATE.tables = activeSession ? (activeSession.tables || {}) : {};
-  if (_firstLoad){
-    _firstLoad = false;
-    const _live = Object.entries(STATE.tables||{}).find(([,t])=>t.game&&!t.game.finished);
-    if (_live){ goScreen("s4", _live[0]); return; }
-  }
-  renderAll();
-});
-
 </script>
 </body>
 </html>
