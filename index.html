@@ -1712,26 +1712,35 @@ function launchDiceGame(autoVidoCount, vidoType){
   const setup = fmt === "2v2"
     ? rotationFromRanking_2v2(dicePick.ranking)
     : rotationFromRanking(dicePick.ranking);
-  const game = buildInitialGame(setup.seated, setup.partners);
-  if (autoVidoCount > 0){
-    Object.values(game.pairs).forEach(oppMap=>{
-      Object.values(oppMap).forEach(p=>{ p.count = autoVidoCount; });
+
+  const doLaunch = (count) => {
+    const game = buildInitialGame(setup.seated, setup.partners);
+    if (count > 0){
+      Object.values(game.pairs).forEach(oppMap=>{
+        Object.values(oppMap).forEach(p=>{ p.count = count; });
+      });
+    }
+    fbUpdate(`${tablesPath()}/${currentTableId}`, {
+      seated: setup.seated,
+      partners: setup.partners,
+      rotation: setup.rotation,
+      usesRotation: true,
+      usesKingHelper: setup.usesKingHelper,
+      format: fmt,
+      initialRanking: dicePick.ranking.slice(),
+      autoVidoNextHand: false,
+      handsSinceReset: 1,
+      vidoMode: vidoType || "3el",
+      game
     });
+    goScreen("s4", currentTableId);
+  };
+
+  if (vidoType === "herel"){
+    openAutoVidoModal((count)=>{ doLaunch(count); });
+  } else {
+    doLaunch(autoVidoCount);
   }
-  fbUpdate(`${tablesPath()}/${currentTableId}`, {
-    seated: setup.seated,
-    partners: setup.partners,
-    rotation: setup.rotation,
-    usesRotation: true,
-    usesKingHelper: setup.usesKingHelper,
-    format: fmt,
-    initialRanking: dicePick.ranking.slice(),
-    autoVidoNextHand: false,
-    handsSinceReset: 1,
-    vidoMode: vidoType || "3el",
-    game
-  });
-  goScreen("s4", currentTableId);
 }
 
 document.getElementById("startDiceGameBtn").addEventListener("click", ()=>{
