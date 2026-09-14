@@ -3022,6 +3022,32 @@ function escapeHtml(s){
 /* Uygulama açılışta Masalar sekmesinde başlasın. */
 goScreen("s2");
 
+document.getElementById("autoVidoNo").addEventListener("click", ()=>{
+  const cb = autoVidoCallback;
+  closeAutoVidoModal();
+  if (cb) cb(0);
+  else launchDiceGame(0);
+});
+document.getElementById("autoVidoYes").addEventListener("click", ()=>{
+  autoVidoDigit = 0;
+  document.getElementById("autoVidoStep1").style.display = "none";
+  document.getElementById("autoVidoStep2").style.display = "block";
+  buildAutoVidoKeypad();
+  renderAutoVidoPreview();
+});
+document.getElementById("autoVidoBack").addEventListener("click", ()=>{
+  document.getElementById("autoVidoStep1").style.display = "block";
+  document.getElementById("autoVidoStep2").style.display = "none";
+});
+document.getElementById("autoVidoConfirm").addEventListener("click", ()=>{
+  if (autoVidoDigit < 1){ alert("En az 1 vido girin."); return; }
+  const count = autoVidoDigit;
+  const cb = autoVidoCallback;
+  closeAutoVidoModal();
+  if (cb) cb(count);
+  else launchDiceGame(count);
+});
+
 ROOT.on("value", snap => {
 
 /* ===================== FIREBASE SYNC ===================== */
