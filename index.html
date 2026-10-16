@@ -58,7 +58,7 @@
   .wrap{max-width:520px;margin:0 auto;padding:0 14px;}
   .screen{display:none;}
   .screen.active{display:block;animation:fade .15s ease;}
-  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes fade{from{opacity:0;}to{opacity:1;}}
 
   .card{
     background:var(--card);
@@ -3065,10 +3065,29 @@ ROOT.on("value", snap => {
   if (_firstLoad){
     _firstLoad = false;
     const _live = Object.entries(STATE.tables||{}).find(([,t])=>t.game&&!t.game.finished);
-    if (_live){ goScreen("s4", _live[0]); return; }
+    if (_live){ goScreen("s4", _live[0]); forceRepaint(); return; }
+    renderAll();
+    forceRepaint();
+    return;
   }
   renderAll();
 });
+
+/* iOS Safari (özellikle ana ekran uygulaması) veri geç geldiğinde ekranı
+   yeniden çizmeyebiliyor; kaydırınca düzeliyordu. Burada çizimi zorluyoruz. */
+function forceRepaint(){
+  requestAnimationFrame(()=>{
+    const b = document.body;
+    b.style.display = "none";
+    void b.offsetHeight;          // reflow tetikle
+    b.style.display = "";
+    const y = window.scrollY;
+    window.scrollTo(0, y + 1);
+    window.scrollTo(0, y);
+  });
+}
+window.addEventListener("pageshow", forceRepaint);
+document.addEventListener("visibilitychange", ()=>{ if (!document.hidden) forceRepaint(); });
 
 </script>
 </body>
