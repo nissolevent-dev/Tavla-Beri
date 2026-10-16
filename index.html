@@ -2991,7 +2991,7 @@ function renderStats(){
       ${row("Mars yaptı / yedi", `${p.marsYapti} / ${p.marsYedi}`)}
       ${row("Vido çekti", p.vidoCekti)}
       ${row("Vido gördü / görmedi", `${p.gordu} / ${p.gormedi}`)}
-      ${p.autoVidoOynadi > 0 ? row("Sanvoir ellerinde", pct(p.autoVidoKazandi, p.autoVidoOynadi) + ` (${p.autoVidoKazandi}/${p.autoVidoOynadi})`) : ""}
+      ${p.autoVidoOynadi > 0 ? row("Sans voir ellerinde", pct(p.autoVidoKazandi, p.autoVidoOynadi) + ` (${p.autoVidoKazandi}/${p.autoVidoOynadi})`) : ""}
       ${row("En uzun kazanma serisi", p.maxSeri)}
       ${row("En uzun kaybetme serisi", p.maxKaybSeri)}
       ${row("En çok kazanılan el", "+" + p.enCokKazanilan.toFixed(0) + " ₺")}
